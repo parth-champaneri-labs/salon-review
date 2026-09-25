@@ -1,5 +1,4 @@
 import "server-only";
-
 import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import { siteConfig } from "../../config/site";
 import { draftLabels, parseReviewDrafts, type ReviewDraft, type ReviewInput } from "../review-contract";
@@ -9,48 +8,77 @@ export const FALLBACK_MODEL = "gemini-3.5-flash-lite";
 
 export class ReviewProviderError extends Error {
   readonly kind: "configuration" | "output";
-
   constructor(kind: "configuration" | "output") {
     super(kind === "configuration" ? "Review provider is not configured." : "Invalid review provider output.");
     this.kind = kind;
   }
 }
 
-export const systemInstruction = `You help a salon customer write three Google review drafts using only their selected service and experience tags.
-Write like a normal customer quickly typing on Google from their phone. Use short natural phrases, simple everyday words, contractions where natural, direct observations, occasional natural fragments, and uneven sentence lengths. Do not sound like an advert, polished copy, a story, or an AI explanation.
+export const systemInstruction = `You are a real customer typing a quick Google review on your phone. Not a writer.
 
-Never pad sparse input. A service plus only one tag usually needs just 1–2 very short sentences; one truthful sentence can be enough. For exactly one service and one tag, aim for 10–22 words in natural, 4–12 in short, and 8–20 in Hinglish. These are guidelines, never minimum requirements. Truthfulness matters more than length; stop when the supplied facts run out.
-A service selection establishes only the service received, not satisfaction. Use only observations directly supported by selected tags. Do not infer other tags.
-When experience tags are empty, keep every draft extremely neutral and short. Mention only the service. Never invent friendliness, cleanliness, results, professionalism, comfort, efficiency, or satisfaction.
+GOAL: 3 drafts that look 100% human typed in 15 seconds.
 
-Never invent staff names, prices, wait times, products, hairstyle details, treatment effects, discounts, facilities, locations, rankings, star ratings, customer emotions, or intentions to return.
-Never add unsupported temporal or context details: "from the moment I walked in", "throughout the appointment", "stopped by", "the whole visit", or similar scene-setting and duration claims. Use such details only if explicitly supplied; the current service and tag selections do not establish them.
-Avoid marketing language, AI-like filler, and stock praise: "exceptional experience", "outstanding service", "exceeded expectations", "highly recommended", "five-star experience", "absolutely amazing", "truly wonderful", "best salon ever", "overall experience was great", "wonderful experience", "lovely experience", "very professional and welcoming", "highly recommend", or "smooth experience". Do not use these phrases unless the customer input directly supports them; never use them to fill space.
-The business name is optional. Prefer omitting it. Use it only when it naturally improves the sentence; ideally no more than one of the three drafts mentions it. Do not keyword-stuff or add SEO language.
-Avoid rigid complete-sentence templates such as "I got a haircut at X. The staff was friendly.", "I visited X for a haircut.", or "I went to X for a haircut." Do not start all three drafts with "I went", "I visited", or "I got". Give the drafts different openings, sentence structures, lengths, and phrasing; they should not read like three rewrites of the same template or restate the same fact almost identically.
+Rules:
+- Very short: 1 sentence max.
+- Simple words: nice, clean, loved it, acha laga, kaafi
+- Use contractions: it's, I'm
+- One real angle per service: Haircut=shape/look, Color=shade/result, Spa/Massage=relaxed feel, Beard=neat trim, Facial=fresh/clean skin
+- NEVER invent: staff name, price, time, product, discount, location, 5 star, will come again
+- NEVER use: exceptional, outstanding, highly recommend, five-star, absolutely amazing, best ever, wonderful experience, very professional
+- Business name max 1 draft me
+- All 3 drafts MUST have different words and different opening. Never repeat same sentence structure.
+- Hinglish must be Roman only, like "haircut karwaya, kaafi acha laga" - not translation
+- No emoji unless explicitly told
 
-Return exactly three distinct drafts in this order:
-1. type natural, label "Warm & natural": simple conversational English, usually around 12–30 words when the input supports it.
-2. type short, label "Short & simple": plain everyday English, usually around 8–20 words when the input supports it. A natural fragment such as "Nice haircut, friendly staff." is fine; do not force a mini-paragraph.
-3. type hinglish, label "Natural Hinglish": casual Roman Hindi + English in Roman script only, usually around 12–30 words when the input supports it. Compose it independently, not as a direct translation of either English draft. Prefer natural phrasing such as "Haircut ke liye gaya tha, staff kaafi friendly tha" or "Haircut karwaya tha, staff ka behaviour acha laga" over formal or translated-English phrasing. Avoid forced slang.
-All three may be shorter when there is little information. Do not repeat filler just to make drafts longer or different. Do not intentionally add an emoji because it is allowed: most sets should contain none. Occasionally, one emoji in the whole set is acceptable only if it genuinely feels natural.
+Return only JSON.`;
 
-Writing-style examples, not text to copy verbatim:
-INPUT: Service: Haircut; Tags: Friendly staff
-GOOD natural: "Went in for a haircut. Staff was really nice and easy to talk to."
-GOOD short: "Nice haircut, friendly staff."
-GOOD Hinglish: "Haircut ke liye gaya tha, staff kaafi friendly tha."
-Avoid rigid "[Service] at [Business]. Staff was [adjective]." templates and 
-opening every draft the same way (e.g. always starting with "I got"/"I went"/
-"I visited" + service + business name in the same order).
-These bad examples repeat a rigid template and force the business name.
+// Is list ko bada kiya taaki har bar naya angle mile
+const openingAngles = [
+  "Start with result directly: 'Nice cut...' 'Color looks...'",
+  "Start with feeling: 'Feels so relaxed...' 'bahut acha laga...'",
+  "Start with a short fragment: 'Clean trim.' 'Nice cut, loved it.'",
+  "Start mid-thought like texting: 'just got haircut, turned out really well'",
+  "Blunt and matter-of-fact: 'Good haircut. Sits well.'",
+  "Start with 'Loved how...' or 'Really liked...'",
+  "Start with service at the end: '... after haircut' / '... after facial'",
+  "Start lowercase casual, especially hinglish",
+  "Use filler naturally: 'actually', 'finally', 'kaafi'",
+  "Start with shape/shade/feel in first 3 words",
+  "Start with 'got a...' but keep it short",
+  "Start with 'haircut karwaya tha...' style",
+] as const;
 
-INPUT: Service: Hair Color; Tags: Great results, Attention to detail
-GOOD natural: "Really liked how my hair color turned out. They paid attention to the little details."
-GOOD short: "Really happy with the hair color and attention to detail."
-GOOD Hinglish: "Hair color ka result kaafi acha laga, details pe bhi achha dhyan diya."
-Use these examples only as writing-style guidance; do not copy them verbatim.
-Return only the specified JSON structure. The customer can edit before posting.`;
+function buildVariationDirective(previousReviews: string[] = []): string {
+  // Har bar 3 alag angles pick karo
+  const shuffled = [...openingAngles].sort(() => 0.5 - Math.random()).slice(0, 3);
+  const includeEmoji = Math.random() < 0.07;
+  const emojiLine = includeEmoji
+    ? "For this request only: include exactly one emoji in exactly one draft."
+    : "For this request: do not use any emoji.";
+
+  // Ye sabse important hai - previous ko ban karo
+  const bannedBlock = previousReviews.length
+    ? `BANNED LIST - Do NOT repeat, paraphrase or reuse these previous reviews. Create 100% fresh wording:\n"${previousReviews.join('"\n"')}"`
+    : "This is first generation, make them fresh.";
+
+  const nonce = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  return `
+CRITICAL: This is a REGENERATE request. You must create completely NEW drafts.
+Attempt ID: ${nonce}
+
+${bannedBlock}
+
+Variation for THIS request only:
+- Draft 1 (Warm & natural) angle: ${shuffled[0]}
+- Draft 2 (Short & simple) angle: ${shuffled[1]} 
+- Draft 3 (Natural Hinglish) angle: ${shuffled[2]}
+
+Rules: All 3 drafts must use totally different words from each other and from banned list.
+Random seed: ${nonce}
+${emojiLine}
+`;
+}
 
 const responseJsonSchema = {
   type: "object",
@@ -64,7 +92,7 @@ const responseJsonSchema = {
         properties: {
           type: { type: "string", enum: Object.keys(draftLabels) },
           label: { type: "string", enum: Object.values(draftLabels) },
-          text: { type: "string", description: "A grounded customer review, at most 1200 characters." },
+          text: { type: "string", description: "A short, genuinely positive customer review, at most 1200 characters." },
         },
       },
     },
@@ -82,33 +110,31 @@ export function isRetryableProviderError(error: unknown): boolean {
   return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
 }
 
-export async function generateWithModel(model: string, input: ReviewInput): Promise<ReviewDraft[]> {
+// Yaha previousReviews add kiya
+export async function generateWithModel(
+  model: string, 
+  input: ReviewInput & { previousReviews?: string[] }
+): Promise<ReviewDraft[]> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey?.trim()) throw new ReviewProviderError("configuration");
   const ai = new GoogleGenAI({ apiKey });
+  
   const response = await ai.models.generateContent({
     model,
     contents: [
       `Business: ${siteConfig.businessName}`,
       `Service: ${input.service}`,
-      `Experience tags: ${input.experienceTags.length ? input.experienceTags.join(", ") : "None"}`,
-      "Sparse input should produce sparse output. Use only the supplied facts; do not fill gaps.",
+      `Request ID: ${Date.now()}-${Math.random().toString(36).slice(2,7)} - You must generate fresh unique reviews, never seen before.`,
+      buildVariationDirective(input.previousReviews || []),
     ].join("\n"),
-    // config: {
-    //   systemInstruction,
-    //   responseMimeType: "application/json",
-    //   responseJsonSchema,
-    //   ...(model === PRIMARY_MODEL ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
-    //   maxOutputTokens: 800,
-    //   httpOptions: { timeout: 12000, retryOptions: { attempts: 1 } },
-    //   abortSignal: AbortSignal.timeout(12000),
-    // },
     config: {
       systemInstruction,
       responseMimeType: "application/json",
       responseJsonSchema,
-      temperature: 1.1,      
-      topP: 0.95,
+      temperature: 1.35, // 1.25 se thoda badhaya
+      topP: 0.98,
+      topK: 64,
+      seed: Math.floor(Math.random() * 1000000), // Har bar alag seed
       ...(model === PRIMARY_MODEL ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
       maxOutputTokens: 800,
       httpOptions: { timeout: 12000, retryOptions: { attempts: 1 } },
@@ -123,15 +149,22 @@ export async function generateWithModel(model: string, input: ReviewInput): Prom
   }
 }
 
-type ModelGenerator = (model: string, input: ReviewInput) => Promise<ReviewDraft[]>;
+type ModelGenerator = (model: string, input: ReviewInput & { previousReviews?: string[] }) => Promise<ReviewDraft[]>;
 
-export async function generateReviewDrafts(input: ReviewInput, generate: ModelGenerator = generateWithModel): Promise<ReviewDraft[]> {
+export async function generateReviewDrafts(
+  input: ReviewInput & { previousReviews?: string[] }, 
+  generate: ModelGenerator = generateWithModel
+): Promise<ReviewDraft[]> {
   try {
     return await generate(PRIMARY_MODEL, input);
   } catch (error) {
-    if (!isRetryableProviderError(error)) throw error;
-    // Never log raw provider errors, request data, output, or credentials.
-    console.warn("Review generation: retrying with fallback", { status: providerStatus(error) ?? "timeout" });
+    if (error instanceof ReviewProviderError && error.kind === "configuration") throw error;
+    const shouldFallback = isRetryableProviderError(error) ||
+      (error instanceof ReviewProviderError && error.kind === "output");
+    if (!shouldFallback) throw error;
+    console.warn("Review generation: retrying with fallback", {
+      status: providerStatus(error) ?? (error instanceof ReviewProviderError ? "output" : "timeout"),
+    });
     return generate(FALLBACK_MODEL, input);
   }
 }
