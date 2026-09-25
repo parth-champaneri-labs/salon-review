@@ -51,9 +51,6 @@ h1, h2, h3, h4 { font-weight: 400; }
 .step-nav { display: flex; gap: 12px; }
 .step-nav li { min-width: 0; flex: 1; padding-top: 12px; border-top: 1px solid var(--line); font-size: 11px; color: var(--muted); }
 .step-nav li.active { border-top: 2px solid #756448; padding-top: 11px; color: var(--ink); }
-.star-icon { fill: transparent; stroke: #988568; stroke-width: 1; transition: fill .15s; }
-.star-filled { fill: #a78b5c; stroke: #8f764c; }
-.star-label:hover .star-icon { stroke: #382c1b; }
 .choice { border: 1px solid var(--line); background: transparent; transition: background .2s, border-color .2s; line-height: 1.4; }
 .choice:hover { border-color: #978973; }
 .chosen { background: #e5ded0; border-color: #857155; }
@@ -81,8 +78,6 @@ h1, h2, h3, h4 { font-weight: 400; }
   .hero-title { font-size: 46px; }
   .hero-center .eyebrow { max-width: 245px; font-size: 9px; }
   .hero-center .action { width: 100%; max-width: 280px; }
-  .stars { gap: 3px; }
-  .star-label { width: 46px; }
   .tag-choice { width: 100%; justify-content: space-between; }
 }
 @media(prefers-reduced-motion:reduce) {
@@ -94,3 +89,5 @@ h1, h2, h3, h4 { font-weight: 400; }
 }
 
 .step-nav li.complete { border-color: #a59273; color: #6c5840; }
+
+@media(max-width:639px) { .desktop-progress { display: none; } }

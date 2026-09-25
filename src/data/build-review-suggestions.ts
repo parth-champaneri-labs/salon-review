@@ -1,14 +1,14 @@
 import type { ReviewContext, ReviewSuggestion } from "../components/review/types";
 
-const highlightPhrases: Record<string, string> = {
-  "Friendly staff": "The team was really friendly.",
-  "Great results": "I’m very happy with the result.",
-  "Professional service": "The service felt professional throughout.",
-  "Clean salon": "The salon was clean and well maintained.",
-  "Comfortable ambience": "The atmosphere was comfortable and welcoming.",
-  "Attention to detail": "The team paid attention to the little details.",
-  "Quick service": "The service was smooth and efficient.",
-  "Good communication": "They listened carefully to what I wanted.",
+const highlightPhrases: Record<string, { sentence: string; clause: string }> = {
+  "Friendly staff": { sentence: "The team was really friendly.", clause: "the team was really friendly" },
+  "Great results": { sentence: "I’m very happy with the result.", clause: "I’m very happy with the result" },
+  "Professional service": { sentence: "The service felt professional throughout.", clause: "the service felt professional throughout" },
+  "Clean salon": { sentence: "The salon felt clean and well maintained.", clause: "the salon felt clean and well maintained" },
+  "Comfortable ambience": { sentence: "The atmosphere was comfortable and welcoming.", clause: "the atmosphere was comfortable and welcoming" },
+  "Attention to detail": { sentence: "The team paid attention to the little details.", clause: "the team paid attention to the little details" },
+  "Quick service": { sentence: "The service was smooth and efficient.", clause: "the service was smooth and efficient" },
+  "Good communication": { sentence: "They listened carefully to what I wanted.", clause: "they listened carefully to what I wanted" },
 };
 const servicePhrases: Record<string, string> = {
   Haircut: "a haircut", "Hair Styling": "hair styling", "Hair Color": "hair colouring",
@@ -16,31 +16,40 @@ const servicePhrases: Record<string, string> = {
   Cleanup: "a cleanup", Waxing: "waxing", Threading: "threading", Manicure: "a manicure",
   Pedicure: "a pedicure", Makeup: "makeup", "Bridal / Occasion Makeup": "occasion makeup",
   "Keratin / Smoothening": "a keratin / smoothening treatment", "Head Massage": "a head massage",
+  Other: "a salon service",
 };
 
 // Pure local boundary: replace this provider later without changing presentation components.
-export function buildReviewSuggestions({ rating, service, highlights }: ReviewContext): ReviewSuggestion[] {
-  const opening = {
-    1: "My visit to Hair Driver was disappointing overall.",
-    2: "My visit to Hair Driver could have been better.",
-    3: "My visit to Hair Driver was okay overall.",
-    4: "Really enjoyed my visit to Hair Driver.",
-    5: "Had an excellent experience at Hair Driver.",
-  }[rating];
-  const closing = {
-    1: "Overall, the experience fell short of what I’d hoped for.",
-    2: "There were parts of the experience that could be improved.",
-    3: "There were a few things that could have been better.",
-    4: "Overall, it was a really good visit.",
-    5: "Overall, I’m very happy with my visit.",
-  }[rating];
-  const visit = service === "Other" ? "I visited for a salon service." : `I came in for ${servicePhrases[service] ?? service.toLowerCase()}.`;
-  const details = [...new Set(highlights)].flatMap(highlight => highlightPhrases[highlight] ? [highlightPhrases[highlight]] : []);
+export function buildReviewSuggestions({ service, highlights }: ReviewContext): ReviewSuggestion[] {
+  const visit = servicePhrases[service] ?? service.toLowerCase();
+  const details = [...new Set(highlights)].flatMap(highlight =>
+    Object.hasOwn(highlightPhrases, highlight) ? [highlightPhrases[highlight]] : [],
+  );
   const join = (parts: string[]) => parts.filter(Boolean).join(" ");
+  // Pair selected observations to vary the rhythm without adding unselected claims.
+  const naturalDetails = (items: typeof details) => {
+    const sentences: string[] = [];
+    for (let index = 0; index < items.length; index += 2) {
+      const first = items[index].sentence;
+      const second = items[index + 1]?.clause;
+      sentences.push(second ? `${first.slice(0, -1)}, and ${second}.` : first);
+    }
+    return join(sentences);
+  };
   return [
-    { id: "short", title: "Short & simple", text: join([opening, visit, ...details.slice(0, 2)]) },
-    { id: "warm", title: "Warm & natural", text: join([visit.replace("I came in", "I went to Hair Driver").replace("I visited", "I visited Hair Driver"), ...details.slice(0, 4), closing]) },
-    { id: "detailed", title: "A little more detail", text: join([opening, visit, ...details, closing]) },
+    {
+      id: "short", title: "Short & simple",
+      text: join([`I visited Hair Driver for ${visit}.`, naturalDetails(details.slice(0, 2))]),
+    },
+    {
+      id: "warm", title: "Warm & natural",
+      text: details.length
+        ? join([`I went to Hair Driver for ${visit}, and ${details[0].clause}.`, naturalDetails(details.slice(1, 4))])
+        : `My visit to Hair Driver was for ${visit}. That’s what brought me to the salon.`,
+    },
+    {
+      id: "detailed", title: "A little more detail",
+      text: join([`I came to Hair Driver for ${visit} and wanted to share a few words about my visit.`, naturalDetails(details)]),
+    },
   ];
 }
-
