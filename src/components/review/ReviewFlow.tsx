@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { buildReviewSuggestions } from "@/data/build-review-suggestions";
+import { generationErrorMessage, parseReviewDrafts, type ReviewDraft } from "@/lib/review-contract";
 import { Arrow } from "../icons";
 import { ServiceSelector } from "./ServiceSelector";
 import { ExperienceSelector } from "./ExperienceSelector";
@@ -18,13 +18,17 @@ export function ReviewFlow() {
   const [draft, setDraft] = useState("");
   const [selectedReview, setSelectedReview] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState("");
+  const [reviews, setReviews] = useState<ReviewDraft[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [generationError, setGenerationError] = useState("");
+  const inFlight = useRef(false);
+  const generatedContext = useRef<string | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const previousStep = useRef(step);
   const copyId = useRef(0);
   const stepIndex = steps.indexOf(step);
-  const reviewContext = service ? { service, highlights } : null;
-  const reviews = reviewContext ? buildReviewSuggestions(reviewContext) : [];
+  const reviewContext = JSON.stringify({ service, experienceTags: [...highlights].sort() });
 
   useEffect(() => {
     if (previousStep.current === step) return;
@@ -42,6 +46,7 @@ export function ReviewFlow() {
   // Context changes refresh suggestions, but never replace a customer's draft.
   function changeContext() {
     setSelectedReview(null);
+    setGenerationError("");
     clearCopyStatus();
   }
 
@@ -53,6 +58,36 @@ export function ReviewFlow() {
   function navigate(next: ReviewStep) {
     clearCopyStatus();
     setStep(next);
+  }
+
+  async function continueToReview() {
+    if (!service || inFlight.current) return;
+    if (generatedContext.current === reviewContext && reviews.length === 3) {
+      navigate("review");
+      return;
+    }
+    inFlight.current = true;
+    setLoading(true);
+    setGenerationError("");
+    try {
+      const response = await fetch("/api/generate-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: reviewContext,
+        signal: AbortSignal.timeout(50000),
+      });
+      if (!response.ok) throw new Error("Review request failed");
+      const nextReviews = parseReviewDrafts(await response.json());
+      setReviews(nextReviews);
+      generatedContext.current = reviewContext;
+      setSelectedReview(null);
+      navigate("review");
+    } catch {
+      setGenerationError(generationErrorMessage);
+    } finally {
+      inFlight.current = false;
+      setLoading(false);
+    }
   }
 
   async function copyReview() {
@@ -109,20 +144,25 @@ export function ReviewFlow() {
               <h3 ref={headingRef} tabIndex={-1} className="step-heading">{heading}</h3>
               {step === "details" && <>
                 <p className="mt-4 text-sm text-muted">Choose your primary service.</p>
-                <ServiceSelector value={service} onChange={value => { if (value !== service) { changeContext(); setService(value); } }} />
-                <ExperienceSelector highlights={highlights} onToggle={highlight => {
-                  changeContext();
-                  setHighlights(previous => previous.includes(highlight) ? previous.filter(value => value !== highlight) : [...previous, highlight]);
-                }} />
-                <div className="mt-8">
-                  <button type="button" className="action w-full sm:w-auto" disabled={!service} onClick={() => navigate("review")}>Continue <Arrow /></button>
-                </div>
+                <fieldset disabled={loading} aria-busy={loading} className="min-w-0 border-0 p-0">
+                  <legend className="sr-only">Your visit details</legend>
+                  <ServiceSelector value={service} onChange={value => { if (value !== service) { changeContext(); setService(value); } }} />
+                  <ExperienceSelector highlights={highlights} onToggle={highlight => {
+                    changeContext();
+                    setHighlights(previous => previous.includes(highlight) ? previous.filter(value => value !== highlight) : [...previous, highlight]);
+                  }} />
+                  <div className="mt-8">
+                    <button type="button" className="action w-full sm:w-auto" disabled={!service || loading} onClick={continueToReview}>{loading ? "Writing a few options for you…" : generationError ? "Try again" : "Continue"}{!loading && <Arrow />}</button>
+                  </div>
+                </fieldset>
+                <p role="status" className="sr-only">{loading ? "Writing a few options for you…" : ""}</p>
+                {generationError && <p role="alert" className="mt-4 text-sm text-muted">{generationError}</p>}
               </>}
               {step === "review" && <>
                 <p className="mt-4 text-sm text-muted">Choose a starting point, then edit it in your own words.</p>
                 <ReviewResults reviews={reviews} selected={selectedReview} draft={draft} status={copyStatus}
                   onSelect={id => {
-                    const review = reviews.find(item => item.id === id);
+                    const review = reviews.find(item => item.type === id);
                     if (!review) return;
                     clearCopyStatus();
                     setSelectedReview(id);

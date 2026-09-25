@@ -1,3 +1,4 @@
+import { siteConfig } from "@/config/site";
 import Image from "next/image";
 
 export function ThankYouSection() {
@@ -11,8 +12,8 @@ export function ThankYouSection() {
       </section>
       <footer className="bg-charcoal px-5 text-ivory sm:px-10">
         <div className="mx-auto flex max-w-[1200px] flex-col items-center justify-between gap-5 border-t border-white/15 py-7 text-xs text-[#ccc5b8] sm:flex-row">
-          <Image src="/logo/logofill.png" width={2172} height={724} sizes="160px" alt="Hair Driver — Family Salon & Academy" className="h-auto w-[160px]" />
-          <p>© {new Date().getFullYear()} Hair Driver</p>
+          <Image src="/logo/logofill.png" width={2172} height={724} sizes="160px" alt={`${siteConfig.businessName} — ${siteConfig.businessDescriptor}`} className="h-auto w-[160px]" />
+          <p>© {new Date().getFullYear()} {siteConfig.businessName}</p>
           <a href="#" className="underlink">Back to top ↑</a>
         </div>
       </footer>

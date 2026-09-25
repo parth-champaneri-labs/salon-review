@@ -46,13 +46,13 @@ export function HeroSection() {
       </video>
       <div className="absolute inset-0 -z-10 bg-black/35" />
       <header className="hero-brand flex w-full justify-center">
-        <a href="#" aria-label="Hair Driver home" className="inline-flex min-h-11 items-center">
-          <Image src="/logo/logofill.png" alt="Hair Driver — Family Salon & Academy" width={2172} height={724} sizes="(max-width: 640px) 170px, 210px" priority className="h-auto w-[170px] sm:w-[210px]" />
+        <a href="#" aria-label={`${siteConfig.businessName} home`} className="inline-flex min-h-11 items-center">
+          <Image src="/logo/logofill.png" alt={`${siteConfig.businessName} — ${siteConfig.businessDescriptor}`} width={2172} height={724} sizes="(max-width: 640px) 170px, 210px" priority className="h-auto w-[170px] sm:w-[210px]" />
         </a>
       </header>
       <div className="hero-center flex w-full flex-1 flex-col items-center justify-center px-5">
         <p className="eyebrow text-[#e0d5c3]">YOUR EXPERIENCE MATTERS TO US.</p>
-        <h1 id="hero-title" className="hero-title">Loved your Hair Driver<br /><em>experience?</em></h1>
+        <h1 id="hero-title" className="hero-title">Loved your {siteConfig.businessName}<br /><em>experience?</em></h1>
         <p className="mt-6 max-w-sm text-[15px] leading-relaxed text-[#e5dfd5] sm:text-base">We’d love to hear about your visit.<br />Share your experience in just a few seconds.</p>
         <a href="#reviews" className="action action-light mt-8">Start your review <Arrow diagonal /></a>
         <a href="#reviews" aria-label="Scroll to review flow" className="mt-4 flex h-11 w-11 items-center justify-center text-2xl text-[#ded1bd]">↓</a>
