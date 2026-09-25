@@ -1,7 +1,16 @@
-import { Header, Hero, ExperienceSection, ClosingSection, Footer } from "@/components/brand-sections";
-import { ReviewSuggestions } from "@/components/review-suggestions";
-import { reviewSuggestions } from "@/data/reviews";
+import { HeroSection } from "@/components/review/HeroSection";
+import { ReviewFlow } from "@/components/review/ReviewFlow";
+import { ThankYouSection } from "@/components/review/ThankYouSection";
 
 export default function Home() {
-  return <><a className="skip-link" href="#reviews">Skip to review suggestions</a><Header /><main id="main"><Hero /><ExperienceSection /><ReviewSuggestions suggestions={reviewSuggestions} /><ClosingSection /></main><Footer /></>;
+  return (
+    <>
+      <a className="skip-link" href="#reviews">Skip to your review</a>
+      <main>
+        <HeroSection />
+        <ReviewFlow />
+      </main>
+      <ThankYouSection />
+    </>
+  );
 }

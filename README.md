@@ -1,36 +1,52 @@
-# Hair Driver — Phase 1
+# Hair Driver review experience
 
-A frontend-only Next.js / TypeScript review landing page. Original client logo, three temporary salon photographs, three selectable review suggestions, clipboard feedback, and a configurable Google destination.
+A mobile-first Next.js + TypeScript + Tailwind frontend for QR/NFC visitors. The existing Supabase utilities, dependencies and environment configuration are preserved.
 
-## Run
+## Run and verify
 
 ```sh
 npm install
 npm run dev
+npx tsc --noEmit
+npm run lint
+node --test tests/review-contract.test.mjs
+npm run build
 ```
 
-Open http://localhost:3000. Validate with `npm run lint` and `npm run build`.
-The build downloads Cormorant Garamond and Manrope through `next/font`; deployment builds need access to Google Fonts. Fonts are served locally to visitors afterward.
+Tests use Node 22.18+ / Node 24 native TypeScript support. The production build needs Google Fonts access for the existing Cormorant Garamond and Manrope fonts. Fonts are then served locally to visitors.
 
-## Client handover
+## Page and assets
 
-- Set `googleReviewUrl` in `src/config/site.ts` to the verified Hair Driver Google review link before sharing the QR code. The current URL is a Google Maps search placeholder, not a verified listing or review form.
-- Replace the image files mapped in `src/config/site.ts` with client photography. Update their alternative text at the same time.
-- Edit the three typed suggestions in `src/data/reviews.ts`. The UI receives suggestions through props so the source can be replaced later.
-- The supplied `public/logo/logo.png` is used without alterations. No contact details have been invented.
-- Clipboard access requires HTTPS in production (localhost also works). If permission is denied, the page offers manual-copy guidance. Copying does not post a review; the visitor pastes and submits it on Google.
-- Search indexing is disabled for this prototype in `src/app/layout.tsx`.
+- `src/app/page.tsx`: cinematic hero, guided review flow, thank-you and footer.
+- `src/components/review/`: reusable rating, service, tag, feedback, generation and editable-result components. `ReviewFlow` owns answers, navigation, drafts and request state.
+- `src/data/review-options.ts`: 16 services, eight experience tags, five rating labels.
+- `src/data/reviews.ts`: three explicitly labeled sample reviews. These are never represented as generated responses and are not derived from answers.
+- `src/config/site.ts`: Google review destination and actual video path `/videos/hero.mp4` (plural directory).
+- `public/logo/logofill.png`: existing light logo, unmodified. `public/images/salon-styling.jpg` is the existing fallback poster.
+- `src/app/globals.css`: Tailwind import, warm ivory/charcoal theme and restrained custom cinematic/control styles.
 
-## Scope
+Replace the configured Google Maps search placeholder with the verified salon review link before public QR/NFC rollout. Prototype search indexing remains disabled in the existing layout.
 
-No API routes, persistence, authentication, analytics, or AI integration are used by the page. Supabase dependencies and unused utilities were already present in the repository; the frontend does not import them or require their environment variables.
+## Review flow
 
-## Temporary image sources
+1. Rate the visit with native keyboard-accessible star radio controls.
+2. Choose a primary service; expand the remaining services when needed.
+3. Ratings 1–3 get a thoughtful feedback form. Ratings 4–5 get optional multi-select tags and notes.
+4. Positive-rating visitors can explore labeled samples or write their own review, edit and copy it, and continue to Google. Each suggestion retains its own edits while switching selection.
 
-Downloaded from Unsplash and served from `public/images`:
+Google reviews remain accessible for every rating. Nothing is posted automatically. Clipboard access needs HTTPS (or localhost); a denied copy operation offers manual-copy guidance. No answers or drafts are persisted on refresh.
 
-- Styling: image identifier `photo-1562322140-8baeececf3df`
-- Beauty: image identifier `photo-1524504388940-b1c1722653e1`
-- Grooming: image identifier `photo-1503951914875-452162b0f3f1`
+## Real API integration boundary
 
-The exact source image URLs are `https://images.unsplash.com/` followed by the corresponding image identifier. These are temporary campaign references, not photographs of Hair Driver's team or premises.
+No review-generation or feedback-submission endpoint exists in this project. Their buttons are intentionally unavailable with visible explanations; feedback is never falsely reported as sent. No fake delays, random reviews, API calls, database tables, or credentials were added.
+
+`ReviewFlow` accepts an optional typed `Partial<ReviewGateway>` from a client wrapper:
+
+- `generate(input): Promise<ReviewSuggestion[]>` must return exactly three complete reviews with unique IDs. Responses are validated before replacing existing drafts. Loading and error states are implemented; a failed regeneration preserves the current review.
+- `submitFeedback(input): Promise<void>` must resolve only after actual delivery. Only then is the success confirmation shown.
+
+The payload contains `rating`, `service`, `tags` and `note`. Low-rating feedback excludes positive experience tags. Keep secrets on the server when adding the future endpoints; client adapters should call those endpoints. Do not pass callback functions directly across a Server Component boundary.
+
+## Motion and performance
+
+The existing ~5 MB 1280×720 MP4 uses metadata preload, muted inline autoplay, cover cropping and a light CSS blur/brightness treatment. A pause/play control is provided. Reduced-motion visitors get a still poster by default; explicit play is opt-in. Layout dimensions are reserved, and no animation or component-library dependencies were added.
