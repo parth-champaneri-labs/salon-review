@@ -8,11 +8,3 @@ export const experienceTags = [
   "Friendly staff", "Great results", "Professional service", "Clean salon",
   "Comfortable ambience", "Attention to detail", "Quick service", "Good communication",
 ] as const;
-
-export const ratingLabels = {
-  1: "Not great",
-  2: "Could be better",
-  3: "It was okay",
-  4: "Really good",
-  5: "Excellent",
-} as const;
