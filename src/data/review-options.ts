@@ -1,7 +1,7 @@
 export const services = [
   "Haircut", "Hair Styling", "Hair Color", "Hair Spa", "Beard / Grooming", "Facial",
-  "Cleanup", "Waxing", "Threading", "Manicure", "Pedicure", "Makeup",
-  "Bridal / Occasion Makeup", "Keratin / Smoothening", "Head Massage", "Other",
+  "Cleanup", "Makeup",
+  "Bridal / Occasion Makeup", "Head Massage", "Other",
 ] as const;
 
 export const experienceTags = [
