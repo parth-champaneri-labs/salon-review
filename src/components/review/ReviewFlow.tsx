@@ -1,26 +1,44 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { generationErrorMessage, parseReviewDrafts, type ReviewDraft } from "@/lib/review-contract";
+import { parseReviewDrafts, type ReviewDraft } from "@/lib/review-contract";
 import { Arrow } from "../icons";
 import { ServiceSelector } from "./ServiceSelector";
-import { ExperienceSelector } from "./ExperienceSelector";
 import { ReviewResults } from "./ReviewResults";
-import type { ReviewStep } from "./types";
+import type { GenerationStatus, ReviewStep } from "./types";
 
 const steps: ReviewStep[] = ["details", "review"];
 const stepLabels = ["Visit details", "Your review"];
 
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const field = document.createElement("textarea");
+    field.value = text;
+    field.readOnly = true;
+    field.style.position = "fixed";
+    field.style.opacity = "0";
+    document.body.appendChild(field);
+    field.select();
+    try {
+      return document.execCommand("copy");
+    } finally {
+      field.remove();
+    }
+  }
+}
+
 export function ReviewFlow() {
   const [step, setStep] = useState<ReviewStep>("details");
   const [service, setService] = useState("");
-  const [highlights, setHighlights] = useState<string[]>([]);
-  const [draft, setDraft] = useState("");
   const [selectedReview, setSelectedReview] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState("");
+  const [copyFeedbackId, setCopyFeedbackId] = useState(0);
   const [reviews, setReviews] = useState<ReviewDraft[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [generationError, setGenerationError] = useState("");
+  const [generationStatus, setGenerationStatus] = useState<GenerationStatus>("idle");
+  const [arrivalId, setArrivalId] = useState(0);
   const inFlight = useRef(false);
   const generatedContext = useRef<string | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -28,7 +46,14 @@ export function ReviewFlow() {
   const previousStep = useRef(step);
   const copyId = useRef(0);
   const stepIndex = steps.indexOf(step);
-  const reviewContext = JSON.stringify({ service, experienceTags: [...highlights].sort() });
+  const reviewContext = JSON.stringify({ service });
+  const loading = generationStatus === "loading";
+
+  useEffect(() => {
+    if (copyStatus !== "copied") return;
+    const timer = window.setTimeout(() => setCopyStatus(""), 1700);
+    return () => window.clearTimeout(timer);
+  }, [copyStatus, copyFeedbackId]);
 
   useEffect(() => {
     if (previousStep.current === step) return;
@@ -37,16 +62,10 @@ export function ReviewFlow() {
     progressRef.current?.scrollIntoView({ block: "start", behavior: "instant" });
   }, [step]);
 
-  useEffect(() => {
-    if (copyStatus !== "Review copied.") return;
-    const timer = window.setTimeout(() => setCopyStatus(""), 4000);
-    return () => window.clearTimeout(timer);
-  }, [copyStatus]);
-
-  // Context changes refresh suggestions, but never replace a customer's draft.
+  // Context changes invalidate the selection without changing the current suggestions.
   function changeContext() {
     setSelectedReview(null);
-    setGenerationError("");
+    setGenerationStatus("idle");
     clearCopyStatus();
   }
 
@@ -57,52 +76,83 @@ export function ReviewFlow() {
 
   function navigate(next: ReviewStep) {
     clearCopyStatus();
+    if (next === "details") setArrivalId(0);
     setStep(next);
   }
 
-  async function continueToReview() {
+  async function continueToReview(regenerate = false) {
     if (!service || inFlight.current) return;
-    if (generatedContext.current === reviewContext && reviews.length === 3) {
+    
+    // Normal continue pe cache use karo, regenerate pe nahi
+    if (!regenerate && generatedContext.current === reviewContext && reviews.length === 3) {
+      setGenerationStatus("success");
+      setArrivalId(0);
       navigate("review");
       return;
     }
+    
     inFlight.current = true;
-    setLoading(true);
-    setGenerationError("");
+    clearCopyStatus();
+    setSelectedReview(null);
+    setGenerationStatus("loading");
+    navigate("review");
+    
     try {
+      // YAHI MAIN CHANGE HAI
+      const payload = {
+        service,
+        previousReviews: regenerate ? reviews.map(r => r.text) : [], // purane 3 bhej do
+        attemptId: `${Date.now()}-${Math.random().toString(36).slice(2)}` // cache bust
+      };
+
       const response = await fetch("/api/generate-review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: reviewContext,
+        body: JSON.stringify(payload), // reviewContext ki jagah payload
         signal: AbortSignal.timeout(50000),
       });
+      
       if (!response.ok) throw new Error("Review request failed");
       const nextReviews = parseReviewDrafts(await response.json());
       setReviews(nextReviews);
       generatedContext.current = reviewContext;
       setSelectedReview(null);
-      navigate("review");
+      setGenerationStatus("success");
+      setArrivalId(id => id + 1);
     } catch {
-      setGenerationError(generationErrorMessage);
+      setGenerationStatus("error");
     } finally {
       inFlight.current = false;
-      setLoading(false);
     }
   }
 
-  async function copyReview() {
-    if (!draft.trim()) return;
+  async function selectReview(id: string) {
+    const review = reviews.find(item => item.type === id);
+    if (!review || loading) return;
     const currentCopy = ++copyId.current;
     setCopyStatus("");
     try {
-      await navigator.clipboard.writeText(draft);
-      if (currentCopy === copyId.current) setCopyStatus("Review copied.");
+      const copied = await copyText(review.text);
+      if (currentCopy !== copyId.current) return;
+      if (!copied) throw new Error("Clipboard unavailable");
+      setSelectedReview(id);
+      setCopyFeedbackId(value => value + 1);
+      setCopyStatus("copied");
     } catch {
-      if (currentCopy === copyId.current) setCopyStatus("Select the text in your review and copy it manually.");
+      if (currentCopy === copyId.current) {
+        setSelectedReview(null);
+        setCopyStatus("Couldn't copy automatically. Tap a review to try again.");
+      }
     }
   }
 
-  const heading = step === "details" ? "What did you visit us for?" : "Make it sound like you.";
+  const heading = step === "details"
+    ? "What did you visit us for?"
+    : generationStatus === "loading"
+      ? "Finding the right words."
+      : generationStatus === "success"
+        ? "Choose a starting point."
+        : "Make it sound like you.";
 
   return (
     <section id="reviews" className="scroll-mt-0 bg-ivory" aria-labelledby="review-title">
@@ -118,7 +168,6 @@ export function ReviewFlow() {
             {service && <div className="border-t border-line pt-5 text-sm text-muted lg:mt-7">
               <p className="eyebrow">YOUR VISIT</p>
               <p className="eyebrow mt-4">SERVICE</p><p>{service}</p>
-              {highlights.length > 0 && <><p className="eyebrow mt-4">WHAT STOOD OUT</p><p>{highlights.join(" · ")}</p></>}
             </div>}
           </aside>
 
@@ -139,6 +188,7 @@ export function ReviewFlow() {
               </ol>
             </div>
             <p className="mt-4 text-xs text-muted">2 quick steps. Just a few moments.</p>
+            <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{generationStatus === "loading" ? "Creating your review suggestions." : generationStatus === "success" ? "Your review suggestions are ready. Choose one to copy it." : generationStatus === "error" ? "We couldn't create suggestions. You can try again or write on Google." : ""}</p>
             <div key={step} className="step-content mt-7">
               <p className="eyebrow mb-4 text-muted">STEP 0{stepIndex + 1}</p>
               <h3 ref={headingRef} tabIndex={-1} className="step-heading">{heading}</h3>
@@ -147,29 +197,21 @@ export function ReviewFlow() {
                 <fieldset disabled={loading} aria-busy={loading} className="min-w-0 border-0 p-0">
                   <legend className="sr-only">Your visit details</legend>
                   <ServiceSelector value={service} onChange={value => { if (value !== service) { changeContext(); setService(value); } }} />
-                  <ExperienceSelector highlights={highlights} onToggle={highlight => {
-                    changeContext();
-                    setHighlights(previous => previous.includes(highlight) ? previous.filter(value => value !== highlight) : [...previous, highlight]);
-                  }} />
                   <div className="mt-8">
-                    <button type="button" className="action w-full sm:w-auto" disabled={!service || loading} onClick={continueToReview}>{loading ? "Writing a few options for you…" : generationError ? "Try again" : "Continue"}{!loading && <Arrow />}</button>
+                    <p className="text-sm">Need a little inspiration?</p>
+                    <p className="mt-1 text-sm text-muted">Generate a few review suggestions based on your visit.</p>
+                  </div>
+                  <div className="mt-4">
+                    <button type="button" className="action w-full sm:w-auto" disabled={!service || loading} onClick={() => void continueToReview()}>Continue <Arrow /></button>
                   </div>
                 </fieldset>
-                <p role="status" className="sr-only">{loading ? "Writing a few options for you…" : ""}</p>
-                {generationError && <p role="alert" className="mt-4 text-sm text-muted">{generationError}</p>}
               </>}
               {step === "review" && <>
-                <p className="mt-4 text-sm text-muted">Choose a starting point, then edit it in your own words.</p>
-                <ReviewResults reviews={reviews} selected={selectedReview} draft={draft} status={copyStatus}
-                  onSelect={id => {
-                    const review = reviews.find(item => item.type === id);
-                    if (!review) return;
-                    clearCopyStatus();
-                    setSelectedReview(id);
-                    setDraft(review.text);
-                  }}
-                  onEdit={text => { clearCopyStatus(); setDraft(text); }}
-                  onCopy={copyReview} />
+                <ReviewResults reviews={generationStatus === "error" ? [] : reviews} selected={selectedReview} copyStatus={copyStatus} copyFeedbackId={copyFeedbackId}
+                  generationStatus={generationStatus} arrivalId={arrivalId}
+                  onRetry={() => void continueToReview(true)}
+                  onRegenerate={() => void continueToReview(true)}
+                  onSelect={id => void selectReview(id)} />
                 <button type="button" className="underlink mt-5" onClick={() => navigate("details")}>← Back</button>
               </>}
             </div>
