@@ -2,102 +2,61 @@
 
 import { useEffect, useRef, useState } from "react";
 import { siteConfig } from "@/config/site";
-import { sampleReviews } from "@/data/reviews";
+import { buildReviewSuggestions } from "@/data/build-review-suggestions";
 import { ratingLabels } from "@/data/review-options";
 import { Arrow } from "../icons";
 import { StarRating } from "./StarRating";
 import { ServiceSelector } from "./ServiceSelector";
 import { ExperienceSelector } from "./ExperienceSelector";
-import { PrivateFeedback } from "./PrivateFeedback";
-import { AiReviewGenerator } from "./AiReviewGenerator";
 import { ReviewResults } from "./ReviewResults";
-import { validateSuggestions, type Rating, type ReviewGateway, type ReviewInput, type ReviewStep, type ReviewSuggestion } from "./types";
+import type { Rating, ReviewStep } from "./types";
 
-const steps: ReviewStep[] = ["rating", "service", "experience", "results"];
-const stepLabels = ["Your visit", "Your service", "The details", "Your review"];
+const steps: ReviewStep[] = ["rating", "details", "review"];
+const stepLabels = ["Experience", "Visit details", "Your review"];
 
-// Pass an API adapter here when endpoints are available. No mock network requests or fabricated responses.
-export function ReviewFlow({ gateway }: { gateway?: Partial<ReviewGateway> }) {
+export function ReviewFlow() {
   const [step, setStep] = useState<ReviewStep>("rating");
   const [rating, setRating] = useState<Rating | null>(null);
   const [service, setService] = useState("");
-  const [tags, setTags] = useState<string[]>([]);
-  const [note, setNote] = useState("");
-  const [reviews, setReviews] = useState<ReviewSuggestion[]>([]);
+  const [highlights, setHighlights] = useState<string[]>([]);
+  const [draft, setDraft] = useState("");
   const [selectedReview, setSelectedReview] = useState<string | null>(null);
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [samples, setSamples] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
-  const [feedbackStatus, setFeedbackStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const previousStep = useRef<ReviewStep>(step);
-  const requestId = useRef(0);
+  const progressRef = useRef<HTMLOListElement>(null);
+  const previousStep = useRef(step);
   const copyId = useRef(0);
   const stepIndex = steps.indexOf(step);
-  const lowRating = rating !== null && rating <= 3;
-  const busy = loading || feedbackStatus === "loading";
-  const draft = drafts[selectedReview ?? "manual"] ?? "";
+  const reviewContext = rating && service ? { rating, service, highlights } : null;
+  const reviews = reviewContext ? buildReviewSuggestions(reviewContext) : [];
 
   useEffect(() => {
     if (previousStep.current === step) return;
     previousStep.current = step;
     headingRef.current?.focus({ preventScroll: true });
-    headingRef.current?.scrollIntoView({ block: "start", behavior: "instant" });
+    progressRef.current?.scrollIntoView({ block: "start", behavior: "instant" });
   }, [step]);
 
-  function invalidateResults() {
-    requestId.current++;
-    copyId.current++;
-    setReviews([]);
+  useEffect(() => {
+    if (copyStatus !== "Review copied.") return;
+    const timer = window.setTimeout(() => setCopyStatus(""), 4000);
+    return () => window.clearTimeout(timer);
+  }, [copyStatus]);
+
+  // Context changes refresh suggestions, but never replace a customer's draft.
+  function changeContext() {
     setSelectedReview(null);
-    setDrafts({});
+    clearCopyStatus();
+  }
+
+  function clearCopyStatus() {
+    copyId.current++;
     setCopyStatus("");
-    setError("");
-    setFeedbackStatus("idle");
   }
 
-  function input(): ReviewInput | null {
-    return rating && service ? { rating, service, tags: lowRating ? [] : [...tags], note: note.trim() } : null;
-  }
-
-  function showResults(nextReviews: ReviewSuggestion[], isSample: boolean) {
-    setReviews(nextReviews);
-    setDrafts(Object.fromEntries(nextReviews.map(review => [review.id, review.text])));
-    setSelectedReview(nextReviews[0]?.id ?? null);
-    setSamples(isSample);
-    setCopyStatus("");
-    setStep("results");
-  }
-
-  async function generate() {
-    const payload = input();
-    if (!gateway?.generate || !payload || lowRating || loading) return;
-    const currentRequest = ++requestId.current;
-    setLoading(true);
-    setError("");
-    try {
-      const generated = validateSuggestions(await gateway.generate(payload));
-      if (currentRequest === requestId.current) showResults(generated, false);
-    } catch {
-      if (currentRequest === requestId.current) setError("We couldn’t write your review just now. Please try again, or write your own. Your answers are still here.");
-    } finally {
-      if (currentRequest === requestId.current) setLoading(false);
-    }
-  }
-
-  async function submitFeedback() {
-    const payload = input();
-    if (!gateway?.submitFeedback || !payload || !lowRating || busy) return;
-    const currentRequest = ++requestId.current;
-    setFeedbackStatus("loading");
-    try {
-      await gateway.submitFeedback(payload);
-      if (currentRequest === requestId.current) setFeedbackStatus("success");
-    } catch {
-      if (currentRequest === requestId.current) setFeedbackStatus("error");
-    }
+  function navigate(next: ReviewStep) {
+    clearCopyStatus();
+    setStep(next);
   }
 
   async function copyReview() {
@@ -105,73 +64,83 @@ export function ReviewFlow({ gateway }: { gateway?: Partial<ReviewGateway> }) {
     const currentCopy = ++copyId.current;
     setCopyStatus("");
     try {
-      await navigator.clipboard.writeText(draft.trim());
-      if (currentCopy === copyId.current) setCopyStatus("Review copied");
+      await navigator.clipboard.writeText(draft);
+      if (currentCopy === copyId.current) setCopyStatus("Review copied.");
     } catch {
-      if (currentCopy === copyId.current) setCopyStatus("Copy isn’t available in this browser. Select the text in your review and copy it manually.");
+      if (currentCopy === copyId.current) setCopyStatus("Select the text in your review and copy it manually.");
     }
   }
 
   const heading = step === "rating" ? "How was your visit?"
-    : step === "service" ? "What service did you visit us for?"
-    : step === "results" ? "Make it sound like you."
-    : lowRating ? "We’d like to do better." : "What stood out?";
+    : step === "details" ? "What did you visit us for?" : "Make it sound like you.";
 
   return (
     <section id="reviews" className="scroll-mt-0 bg-ivory" aria-labelledby="review-title">
       <div className="flow-shell">
-        <div className="grid items-start gap-10 lg:grid-cols-[.8fr_1.25fr] lg:gap-24">
-          <aside className="lg:sticky lg:top-12">
-            <p className="eyebrow text-[#7c6a4e]">YOUR EXPERIENCE, IN YOUR WORDS</p>
-            <h2 id="review-title" className="flow-display mt-5">A few words.<br /><em>A lasting difference.</em></h2>
-            <p className="mt-5 hidden max-w-xs text-sm leading-relaxed text-muted lg:block">A fresh look. A little confidence. A moment for yourself. Tell us how your visit felt.</p>
-            <div className="mt-7 hidden items-center gap-3 text-xs text-muted lg:flex"><span className="h-px w-8 bg-[#a59273]" />JUST A FEW MOMENTS. ALL YOUR WORDS.</div>
-            {rating && <div className="mt-7 hidden border-t border-line pt-5 text-sm text-muted lg:block"><p>{rating} / 5 — {ratingLabels[rating]}</p>{service && <p className="mt-2">{service}</p>}</div>}
+        <div className="grid items-start gap-8 lg:grid-cols-[.8fr_1.25fr] lg:gap-24">
+          <aside className="order-2 lg:order-1 lg:sticky lg:top-12">
+            <div className="hidden lg:block">
+              <p className="eyebrow text-[#7c6a4e]">YOUR EXPERIENCE, IN YOUR WORDS</p>
+              <h2 id="review-title" className="flow-display mt-5">A few words.<br /><em>A lasting difference.</em></h2>
+              <p className="mt-5 max-w-xs text-sm leading-relaxed text-muted">A fresh look. A little confidence. A moment for yourself.<br />Tell us how your visit felt.</p>
+              <div className="mt-7 flex items-center gap-3 text-xs text-muted"><span className="h-px w-8 shrink-0 bg-[#a59273]" />JUST A FEW MOMENTS. ALL YOUR WORDS.</div>
+            </div>
+            {rating && <div className="border-t border-line pt-5 text-sm text-muted lg:mt-7">
+              <p className="eyebrow">YOUR EXPERIENCE</p>
+              <p aria-hidden="true" className="mt-2 text-xl tracking-widest text-[#8f764c]">{"★".repeat(rating)}{"☆".repeat(5 - rating)}</p>
+              <p>{rating} / 5 — {ratingLabels[rating]}</p>
+              {service && <><p className="eyebrow mt-4">SERVICE</p><p>{service}</p></>}
+              {highlights.length > 0 && <><p className="eyebrow mt-4">HIGHLIGHTS</p><p>{highlights.join(" · ")}</p></>}
+            </div>}
           </aside>
 
-          <div className="min-w-0">
-            <ol className="step-nav" aria-label="Review progress">
-              {(lowRating ? steps.slice(0, 3) : steps).map((item, index) => (
-                <li key={item} className={index === stepIndex ? "active" : ""} aria-current={index === stepIndex ? "step" : undefined}>
-                  <span className="block">0{index + 1}{index < stepIndex ? " ✓" : ""}</span>
-                  <span className="mt-1 block">{lowRating && index === 2 ? "Feedback" : stepLabels[index]}</span>
+          <div className="order-1 min-w-0 lg:order-2">
+            <ol ref={progressRef} className="step-nav scroll-mt-6" aria-label="Review progress">
+              {steps.map((item, index) => (
+                <li key={item} className={index === stepIndex ? "active" : index < stepIndex ? "complete" : ""} aria-current={index === stepIndex ? "step" : undefined}>
+                  <span className="block">{index < stepIndex ? <><span aria-hidden="true">✓</span><span className="sr-only">Completed</span></> : `0${index + 1}`}</span>
+                  <span className="mt-1 block">{stepLabels[index]}</span>
                 </li>
               ))}
             </ol>
-            <div key={step} className="step-content mt-9">
-              <div className="mb-4 flex items-center justify-between text-xs text-muted">
-                <span>STEP 0{stepIndex + 1} {lowRating && step === "experience" ? "· YOUR FEEDBACK" : ""}</span>
-                {stepIndex > 0 && <button type="button" disabled={busy} className="underlink" onClick={() => { copyId.current++; setCopyStatus(""); setError(""); setStep(steps[stepIndex - 1]); }}>← Back</button>}
-              </div>
-              <h3 ref={headingRef} tabIndex={-1} className="step-heading scroll-mt-8">{heading}</h3>
-              <fieldset disabled={busy} className="min-w-0 border-0 p-0">
-                <legend className="sr-only">{heading}</legend>
-                {step === "rating" && <>
-                  <p className="mt-4 text-sm text-muted">Tap a star to rate your experience.</p>
-                  <StarRating value={rating} onChange={value => { if (value !== rating) { invalidateResults(); setRating(value); setTags([]); } }} />
-                  <button type="button" className="action mt-8 w-full sm:w-auto" disabled={!rating} onClick={() => setStep("service")}>Continue <Arrow /></button>
-                </>}
-                {step === "service" && <>
-                  <p className="mt-4 text-sm text-muted">Choose your primary service. We’ll take it from there.</p>
-                  <ServiceSelector value={service} onChange={value => { if (value !== service) { invalidateResults(); setService(value); } }} />
-                  <button type="button" className="action mt-6 w-full sm:w-auto" disabled={!service} onClick={() => setStep("experience")}>Continue <Arrow /></button>
-                </>}
-                {step === "experience" && (lowRating ? <>
-                  <p className="mt-4 text-sm text-muted">Tell us what could have made your experience better. We’re here to listen.</p>
-                  <PrivateFeedback service={service} note={note} onNote={value => { invalidateResults(); setNote(value); }} onSubmit={submitFeedback} available={!!gateway?.submitFeedback} status={feedbackStatus} />
-                </> : <>
-                  <p className="mt-4 text-sm text-muted">Choose any that feel right, or simply skip to writing.</p>
-                  <ExperienceSelector tags={tags} note={note} onToggle={tag => { invalidateResults(); setTags(previous => previous.includes(tag) ? previous.filter(value => value !== tag) : [...previous, tag]); }} onNote={value => { invalidateResults(); setNote(value); }} />
-                  <AiReviewGenerator available={!!gateway?.generate} loading={loading} error={error} onGenerate={generate} onSamples={() => showResults(sampleReviews, true)} onWrite={() => showResults([], false)} />
-                </>)}
-                {step === "results" && <>
-                  <ReviewResults reviews={reviews} selected={selectedReview} draft={draft} samples={samples} loading={loading} canGenerate={!!gateway?.generate} status={copyStatus} onSelect={id => { copyId.current++; setSelectedReview(id); setCopyStatus(""); }} onEdit={text => { copyId.current++; setDrafts(previous => ({ ...previous, [selectedReview ?? "manual"]: text })); setCopyStatus(""); }} onCopy={copyReview} onRegenerate={generate} />
-                  <p role="status" className="mt-2 text-sm">{error}</p>
-                </>}
-              </fieldset>
-              {step !== "results" && <div className="mt-8 border-t border-line pt-5">
+            <p className="mt-4 text-xs text-muted">3 quick steps · About 30 seconds. You can edit everything before Google.</p>
+            <div key={step} className="step-content mt-7">
+              <p className="eyebrow mb-4 text-muted">STEP 0{stepIndex + 1}</p>
+              <h3 ref={headingRef} tabIndex={-1} className="step-heading">{heading}</h3>
+              {step === "rating" && <>
+                <p className="mt-4 text-sm text-muted">Tap a star to rate your experience.</p>
+                <StarRating value={rating} onChange={value => { if (value !== rating) { changeContext(); setRating(value); } }} />
+                <button type="button" className="action mt-8 w-full sm:w-auto" disabled={!rating} onClick={() => navigate("details")}>Continue <Arrow /></button>
+              </>}
+              {step === "details" && <>
+                <p className="mt-4 text-sm text-muted">Choose your primary service.</p>
+                <ServiceSelector value={service} onChange={value => { if (value !== service) { changeContext(); setService(value); } }} />
+                <ExperienceSelector highlights={highlights} onToggle={highlight => {
+                  changeContext();
+                  setHighlights(previous => previous.includes(highlight) ? previous.filter(value => value !== highlight) : [...previous, highlight]);
+                }} />
+                <div className="mt-8 flex items-center justify-between gap-4">
+                  <button type="button" className="underlink" onClick={() => navigate("rating")}>← Back</button>
+                  <button type="button" className="action" disabled={!service} onClick={() => navigate("review")}>Continue <Arrow /></button>
+                </div>
+              </>}
+              {step === "review" && <>
+                <p className="mt-4 text-sm text-muted">Choose a starting point, then edit it in your own words.</p>
+                <ReviewResults reviews={reviews} selected={selectedReview} draft={draft} status={copyStatus}
+                  onSelect={id => {
+                    const review = reviews.find(item => item.id === id);
+                    if (!review) return;
+                    clearCopyStatus();
+                    setSelectedReview(id);
+                    setDraft(review.text);
+                  }}
+                  onEdit={text => { clearCopyStatus(); setDraft(text); }}
+                  onCopy={copyReview} />
+                <button type="button" className="underlink mt-5" onClick={() => navigate("details")}>← Back</button>
+              </>}
+              {step !== "review" && <div className="mt-8 border-t border-line pt-5">
                 <a href={siteConfig.googleReviewUrl} target="_blank" rel="noopener noreferrer" className="underlink">Leave a Google Review <Arrow diagonal /><span className="sr-only"> (opens in a new tab)</span></a>
-                <p className="mt-1 text-xs leading-relaxed text-muted">Always your choice. You can review us directly on Google at any time.</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted">Prefer to go directly to Google? You can leave your review there anytime.</p>
               </div>}
             </div>
           </div>
