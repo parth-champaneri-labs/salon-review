@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { parseReviewDrafts, type ReviewDraft } from "@/lib/review-contract";
+import { parseGenerationState, parseReviewDrafts, type GenerationState, type ReviewDraft } from "@/lib/review-contract";
 import { Arrow } from "../icons";
 import { ServiceSelector } from "./ServiceSelector";
 import { ReviewResults } from "./ReviewResults";
@@ -38,6 +38,7 @@ export function ReviewFlow() {
   const [copyFeedbackId, setCopyFeedbackId] = useState(0);
   const [reviews, setReviews] = useState<ReviewDraft[]>([]);
   const [generationStatus, setGenerationStatus] = useState<GenerationStatus>("idle");
+  const [generation, setGeneration] = useState<GenerationState | null>(null);
   const [arrivalId, setArrivalId] = useState(0);
   const inFlight = useRef(false);
   const generatedContext = useRef<string | null>(null);
@@ -82,6 +83,7 @@ export function ReviewFlow() {
 
   async function continueToReview(regenerate = false) {
     if (!service || inFlight.current) return;
+    if (regenerate && generation?.remaining === 0) return;
     
     // Normal continue pe cache use karo, regenerate pe nahi
     if (!regenerate && generatedContext.current === reviewContext && reviews.length === 3) {
@@ -112,9 +114,19 @@ export function ReviewFlow() {
         signal: AbortSignal.timeout(50000),
       });
       
+      const body: unknown = await response.json();
+      if (typeof body !== "object" || body === null || Array.isArray(body)) throw new Error("Invalid review response");
+      const result = body as Record<string, unknown>;
+      if (response.status === 429 && result.limitReached === true) {
+        setGeneration(parseGenerationState(result.generation));
+        setGenerationStatus("limit");
+        return;
+      }
       if (!response.ok) throw new Error("Review request failed");
-      const nextReviews = parseReviewDrafts(await response.json());
+      const nextReviews = parseReviewDrafts(body);
+      const nextGeneration = parseGenerationState(result.generation);
       setReviews(nextReviews);
+      setGeneration(nextGeneration);
       generatedContext.current = reviewContext;
       setSelectedReview(null);
       setGenerationStatus("success");
@@ -188,7 +200,7 @@ export function ReviewFlow() {
               </ol>
             </div>
             <p className="mt-4 text-xs text-muted">2 quick steps. Just a few moments.</p>
-            <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{generationStatus === "loading" ? "Creating your review suggestions." : generationStatus === "success" ? "Your review suggestions are ready. Choose one to copy it." : generationStatus === "error" ? "We couldn't create suggestions. You can try again or write on Google." : ""}</p>
+            <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{generationStatus === "loading" ? "Creating your review suggestions." : generationStatus === "success" ? "Your review suggestions are ready. Choose one to copy it." : generationStatus === "limit" ? "Generation limit reached. You can continue to Google." : generationStatus === "error" ? "We couldn't create suggestions. You can try again or write on Google." : ""}</p>
             <div key={step} className="step-content mt-7">
               <p className="eyebrow mb-4 text-muted">STEP 0{stepIndex + 1}</p>
               <h3 ref={headingRef} tabIndex={-1} className="step-heading">{heading}</h3>
@@ -208,7 +220,7 @@ export function ReviewFlow() {
               </>}
               {step === "review" && <>
                 <ReviewResults reviews={generationStatus === "error" ? [] : reviews} selected={selectedReview} copyStatus={copyStatus} copyFeedbackId={copyFeedbackId}
-                  generationStatus={generationStatus} arrivalId={arrivalId}
+                  generationStatus={generationStatus} generation={generation} arrivalId={arrivalId}
                   onRetry={() => void continueToReview(true)}
                   onRegenerate={() => void continueToReview(true)}
                   onSelect={id => void selectReview(id)} />
