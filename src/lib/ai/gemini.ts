@@ -1,84 +1,75 @@
 import "server-only";
+
 import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import { siteConfig } from "../../config/site";
 import { draftLabels, parseReviewDrafts, type ReviewDraft, type ReviewInput } from "../review-contract";
 
-export const PRIMARY_MODEL = "gemini-3.8-flash";
-export const FALLBACK_MODEL = "gemini-3.5-flash-lite";
+// Swapped: Flash-Lite is primary (cheap, more than good enough for short
+// review lines), full Flash is only used as a fallback when Lite fails or
+// returns invalid output.
+export const PRIMARY_MODEL = "gemini-3.5-flash-lite";
+export const FALLBACK_MODEL = "gemini-3.8-flash";
 
 export class ReviewProviderError extends Error {
   readonly kind: "configuration" | "output";
+
   constructor(kind: "configuration" | "output") {
     super(kind === "configuration" ? "Review provider is not configured." : "Invalid review provider output.");
     this.kind = kind;
   }
 }
 
-export const systemInstruction = `You are a real customer typing a quick Google review on your phone. Not a writer.
+export const systemInstruction = `You help a salon customer write three short, genuinely positive Google review drafts based only on the service they received. No experience tags are collected — you must infer a natural, truthful-sounding positive angle appropriate to that specific service.
 
-GOAL: 3 drafts that look 100% human typed in 15 seconds.
+Write like a normal happy customer quickly typing on Google from their phone. Short natural phrases, simple everyday words, contractions where natural, occasional fragments, uneven sentence lengths. Do not sound like an advert, polished copy, or an AI explanation.
 
-Rules:
-- Very short: 1 sentence max.
-- Simple words: nice, clean, loved it, acha laga, kaafi
-- Use contractions: it's, I'm
-- One real angle per service: Haircut=shape/look, Color=shade/result, Spa/Massage=relaxed feel, Beard=neat trim, Facial=fresh/clean skin
-- NEVER invent: staff name, price, time, product, discount, location, 5 star, will come again
-- NEVER use: exceptional, outstanding, highly recommend, five-star, absolutely amazing, best ever, wonderful experience, very professional
-- Business name max 1 draft me
-- All 3 drafts MUST have different words and different opening. Never repeat same sentence structure.
-- Hinglish must be Roman only, like "haircut karwaya, kaafi acha laga" - not translation
-- No emoji unless explicitly told
+Keep every draft SHORT. This is a single-service input with no extra detail, so do not pad:
+- natural: usually 8–18 words
+- short: usually 4–10 words, a fragment like "Great haircut, really happy with it." is fine
+- hinglish: usually 8–16 words
 
-Return only JSON.`;
+Ground the positive sentiment in what that service naturally delivers — pick ONE realistic angle per draft, do not stack multiple claims:
+- Haircut / Hair Styling: how it turned out, the style, the look
+- Hair Color: the color result
+- Hair Spa / Head Massage: feeling relaxed, refreshed
+- Beard / Grooming: clean, neat trim
+- Facial / Cleanup: skin feeling fresh, clean
+- Makeup: how the look turned out
+- Others: a simple, generic positive line about the visit
 
-// Is list ko bada kiya taaki har bar naya angle mile
-const openingAngles = [
-  "Start with result directly: 'Nice cut...' 'Color looks...'",
-  "Start with feeling: 'Feels so relaxed...' 'bahut acha laga...'",
-  "Start with a short fragment: 'Clean trim.' 'Nice cut, loved it.'",
-  "Start mid-thought like texting: 'just got haircut, turned out really well'",
-  "Blunt and matter-of-fact: 'Good haircut. Sits well.'",
-  "Start with 'Loved how...' or 'Really liked...'",
-  "Start with service at the end: '... after haircut' / '... after facial'",
-  "Start lowercase casual, especially hinglish",
-  "Use filler naturally: 'actually', 'finally', 'kaafi'",
-  "Start with shape/shade/feel in first 3 words",
-  "Start with 'got a...' but keep it short",
-  "Start with 'haircut karwaya tha...' style",
-] as const;
+Never invent staff names, prices, wait times, product names, specific techniques, discounts, facilities, locations, rankings, star ratings, or intentions to return. Never add unsupported scene-setting like "from the moment I walked in" or "throughout the appointment."
 
-function buildVariationDirective(previousReviews: string[] = []): string {
-  // Har bar 3 alag angles pick karo
-  const shuffled = [...openingAngles].sort(() => 0.5 - Math.random()).slice(0, 3);
-  const includeEmoji = Math.random() < 0.07;
-  const emojiLine = includeEmoji
-    ? "For this request only: include exactly one emoji in exactly one draft."
-    : "For this request: do not use any emoji.";
+Avoid marketing language and stock praise: "exceptional experience", "outstanding service", "exceeded expectations", "highly recommended", "five-star experience", "absolutely amazing", "truly wonderful", "best salon ever", "wonderful experience", "lovely experience", "very professional and welcoming", "smooth experience". Never use these to fill space.
 
-  // Ye sabse important hai - previous ko ban karo
-  const bannedBlock = previousReviews.length
-    ? `BANNED LIST - Do NOT repeat, paraphrase or reuse these previous reviews. Create 100% fresh wording:\n"${previousReviews.join('"\n"')}"`
-    : "This is first generation, make them fresh.";
+The business name is optional. Prefer omitting it; use it in at most one of the three drafts, only if it fits naturally. No keyword-stuffing.
 
-  const nonce = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+Do not use a rigid template like "[Service] at [Business]. Staff was [adjective]." across drafts. Do not open all three the same way (e.g. always "I got"/"I went"/"I visited"). Each of the three drafts must open differently and use a different structure — vary sentence shape, word order, and which single positive angle it picks.
 
-  return `
-CRITICAL: This is a REGENERATE request. You must create completely NEW drafts.
-Attempt ID: ${nonce}
+Return exactly three distinct drafts in this order:
+1. type natural, label "Warm & natural": simple conversational English.
+2. type short, label "Short & simple": plain everyday English, can be a short fragment.
+3. type hinglish, label "Natural Hinglish": casual Roman Hindi + English in Roman script only. Compose independently, not a translation of the English drafts. Prefer phrasing like "Haircut karwaya, kaafi acha laga" or "Hair color ka result bahut pasand aaya" over formal/translated English.
 
-${bannedBlock}
+Do not repeat filler just to make drafts longer or more different than the facts allow. Do not intentionally add an emoji unless explicitly told to for this request — follow the per-request emoji instruction given below exactly.
 
-Variation for THIS request only:
-- Draft 1 (Warm & natural) angle: ${shuffled[0]}
-- Draft 2 (Short & simple) angle: ${shuffled[1]} 
-- Draft 3 (Natural Hinglish) angle: ${shuffled[2]}
+Writing-style examples for DIFFERENT services, not text to copy verbatim — study the variety of openings and structures, not the wording:
 
-Rules: All 3 drafts must use totally different words from each other and from banned list.
-Random seed: ${nonce}
-${emojiLine}
-`;
-}
+INPUT: Service: Haircut
+natural: "Really happy with how my haircut turned out."
+short: "Great haircut, loved it."
+hinglish: "Haircut bahut acha laga, kaafi pasand aaya."
+
+INPUT: Service: Hair Color
+natural: "Loved the color result, exactly the shade I wanted."
+short: "Hair color came out really nice."
+hinglish: "Hair color ka result bahut acha nikla."
+
+INPUT: Service: Head Massage
+natural: "Felt so relaxed after the head massage, needed that."
+short: "Super relaxing head massage."
+hinglish: "Head massage ke baad bilkul relax feel hua."
+
+Return only the specified JSON structure. The customer can edit before posting.`;
 
 const responseJsonSchema = {
   type: "object",
@@ -99,6 +90,26 @@ const responseJsonSchema = {
   },
 };
 
+// Server decides these randomly per request — never left to the model's own
+// probability, so repeated identical inputs still diverge and emoji frequency
+// stays actually low instead of the model defaulting to "never".
+const openingAngles = [
+  "Lead with the result or feeling, not the service name.",
+  "Start with a short fragment rather than a full sentence.",
+  "Start mid-thought, like continuing a text to a friend.",
+  "Lead with how it felt, then mention the service.",
+  "Keep it blunt and matter-of-fact, minimal adjectives.",
+] as const;
+
+function buildVariationDirective(): string {
+  const angle = openingAngles[Math.floor(Math.random() * openingAngles.length)];
+  const includeEmoji = Math.random() < 0.15; // ~15% of requests get one emoji, decided here, not by the model
+  const emojiLine = includeEmoji
+    ? "For this request only: include exactly one natural, relevant emoji in exactly one of the three drafts (not all three)."
+    : "For this request: do not use any emoji in any draft.";
+  return `Variation instruction for this request only: ${angle}\n${emojiLine}`;
+}
+
 export function providerStatus(error: unknown): number | undefined {
   if (typeof error !== "object" || error === null) return;
   if ("status" in error && typeof error.status === "number") return error.status;
@@ -110,32 +121,34 @@ export function isRetryableProviderError(error: unknown): boolean {
   return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
 }
 
-// Yaha previousReviews add kiya
-export async function generateWithModel(
-  model: string, 
-  input: ReviewInput & { previousReviews?: string[] }
-): Promise<ReviewDraft[]> {
+export async function generateWithModel(model: string, input: ReviewInput): Promise<ReviewDraft[]> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey?.trim()) throw new ReviewProviderError("configuration");
   const ai = new GoogleGenAI({ apiKey });
-  
   const response = await ai.models.generateContent({
     model,
     contents: [
       `Business: ${siteConfig.businessName}`,
       `Service: ${input.service}`,
-      `Request ID: ${Date.now()}-${Math.random().toString(36).slice(2,7)} - You must generate fresh unique reviews, never seen before.`,
-      buildVariationDirective(input.previousReviews || []),
+      "Write a short, genuinely positive review for this service only. Pick one natural, realistic positive angle for this specific service type.",
+      buildVariationDirective(),
     ].join("\n"),
     config: {
       systemInstruction,
       responseMimeType: "application/json",
       responseJsonSchema,
-      temperature: 1.35, // 1.25 se thoda badhaya
-      topP: 0.98,
+      // Lowered from 1.25: still enough variation across the 3 drafts and
+      // across requests, but noticeably less risk of malformed/incoherent
+      // JSON output that would trigger a wasted retry + fallback call.
+      temperature: 1.0,
+      topP: 0.95,
       topK: 64,
-      seed: Math.floor(Math.random() * 1000000), // Har bar alag seed
-      ...(model === PRIMARY_MODEL ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}),
+      // Thinking removed: this is short creative text, not a reasoning task.
+      // Thinking tokens bill as output tokens with no quality benefit here,
+      // on either model. Only kept as a no-op for gemini-3.8-flash in case
+      // the fallback path is hit and thinking is required by that model's
+      // config surface; set to NONE explicitly rather than omitted.
+      ...(model === FALLBACK_MODEL ? { thinkingConfig: { thinkingLevel: ThinkingLevel.NONE } } : {}),
       maxOutputTokens: 800,
       httpOptions: { timeout: 12000, retryOptions: { attempts: 1 } },
       abortSignal: AbortSignal.timeout(12000),
@@ -149,22 +162,15 @@ export async function generateWithModel(
   }
 }
 
-type ModelGenerator = (model: string, input: ReviewInput & { previousReviews?: string[] }) => Promise<ReviewDraft[]>;
+type ModelGenerator = (model: string, input: ReviewInput) => Promise<ReviewDraft[]>;
 
-export async function generateReviewDrafts(
-  input: ReviewInput & { previousReviews?: string[] }, 
-  generate: ModelGenerator = generateWithModel
-): Promise<ReviewDraft[]> {
+export async function generateReviewDrafts(input: ReviewInput, generate: ModelGenerator = generateWithModel): Promise<ReviewDraft[]> {
   try {
     return await generate(PRIMARY_MODEL, input);
   } catch (error) {
-    if (error instanceof ReviewProviderError && error.kind === "configuration") throw error;
-    const shouldFallback = isRetryableProviderError(error) ||
-      (error instanceof ReviewProviderError && error.kind === "output");
-    if (!shouldFallback) throw error;
-    console.warn("Review generation: retrying with fallback", {
-      status: providerStatus(error) ?? (error instanceof ReviewProviderError ? "output" : "timeout"),
-    });
+    if (!isRetryableProviderError(error)) throw error;
+    // Never log raw provider errors, request data, output, or credentials.
+    console.warn("Review generation: retrying with fallback", { status: providerStatus(error) ?? "timeout" });
     return generate(FALLBACK_MODEL, input);
   }
 }

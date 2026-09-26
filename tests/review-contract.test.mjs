@@ -7,6 +7,8 @@ import { generateReviewDrafts, generateWithModel, PRIMARY_MODEL, FALLBACK_MODEL,
 import { handleReviewRequest } from '../src/lib/ai/review-request.ts';
 import { POST } from '../src/app/api/generate-review/route.ts';
 
+process.env.REVIEW_COOKIE_SECRET = 'test-secret-with-at-least-thirty-two-characters';
+
 const input = { service: 'Haircut' };
 const output = {
   drafts: [
@@ -20,12 +22,9 @@ const request = value => new Request('http://localhost/api/generate-review', {
 });
 
 function assertServicePrompt(prompt, service) {
-  assert.ok(prompt.startsWith([
-    `Business: ${siteConfig.businessName}`,
-    `Service: ${service}`,
-    'Write a short, genuinely positive review for this service only. Pick one natural, realistic positive angle for this specific service type.',
-  ].join('\n') + '\n'));
-  assert.match(prompt, /\nVariation instruction for this request only: .+\nFor this request(?: only)?: .+/);
+  assert.ok(prompt.startsWith(`Business: ${siteConfig.businessName}\nService: ${service}\nRequest ID: `));
+  assert.match(prompt, /CRITICAL: This is a REGENERATE request/);
+  assert.match(prompt, /Variation for THIS request only:/);
   assert.doesNotMatch(prompt, /Experience tags:/);
 }
 
@@ -129,7 +128,7 @@ test('both models failing returns a clean error with no fake drafts or leaked de
   );
   assert.deepEqual(calls, [PRIMARY_MODEL, FALLBACK_MODEL]);
   assert.equal(response.status, 502);
-  assert.equal(response.headers.get('Cache-Control'), 'no-store');
+  assert.match(response.headers.get('Cache-Control'), /no-store/);
   assert.deepEqual(await response.json(), { error: generationErrorMessage });
 });
 
@@ -166,12 +165,12 @@ test('SDK sends service-only selection with low thinking, bounded tokens and sam
   assert.equal(calls[0].body.generationConfig.responseMimeType, 'application/json');
   assert.equal(calls[0].body.generationConfig.thinkingConfig.thinkingLevel, ThinkingLevel.LOW);
   assert.equal(calls[0].body.generationConfig.maxOutputTokens, 800);
-  assert.equal(calls[0].body.generationConfig.temperature, 1.25);
-  assert.equal(calls[0].body.generationConfig.topP, 0.97);
+  assert.equal(calls[0].body.generationConfig.temperature, 1.35);
+  assert.equal(calls[0].body.generationConfig.topP, 0.98);
   assert.equal(calls[0].body.generationConfig.topK, 64);
   assert.equal(calls[0].headers.get("x-server-timeout"), "12");
   assert.ok(calls[0].body.generationConfig.responseJsonSchema);
-  assert.match(calls[0].body.systemInstruction.parts[0].text, /single-service input with no extra detail/);
+  assert.match(calls[0].body.systemInstruction.parts[0].text, /One real angle per service/);
 });
 
 test('real SDK fallback wiring handles temporary HTTP errors and malformed JSON', async t => {
@@ -273,8 +272,8 @@ test('fallback keeps its default thinking while sharing token and timeout budget
   assert.equal(Object.hasOwn(bodies[1].generationConfig, 'thinkingConfig'), false);
   for (const body of bodies) {
     assert.equal(body.generationConfig.maxOutputTokens, 800);
-    assert.equal(body.generationConfig.temperature, 1.25);
-    assert.equal(body.generationConfig.topP, 0.97);
+    assert.equal(body.generationConfig.temperature, 1.35);
+    assert.equal(body.generationConfig.topP, 0.98);
     assert.equal(body.generationConfig.topK, 64);
     assert.match(body.contents[0].parts[0].text, /Service: Haircut\n/);
     assert.doesNotMatch(body.contents[0].parts[0].text, /Experience tags:/);
@@ -294,14 +293,13 @@ test('invalid primary output triggers exactly one fallback attempt', async () =>
 });
 
 test('prompt prioritizes short service-specific output and bans invented context', () => {
-  assert.match(systemInstruction, /single-service input with no extra detail/);
-  assert.match(systemInstruction, /pick ONE realistic angle per draft/);
+  assert.match(systemInstruction, /One real angle per service/);
+  assert.match(systemInstruction, /All 3 drafts MUST have different words/);
   for (const phrase of [
-    'from the moment I walked in', 'throughout the appointment',
-    'exceptional experience', 'outstanding service', 'exceeded expectations', 'highly recommended',
-    'five-star experience', 'absolutely amazing', 'truly wonderful',
+    'staff name', 'price', 'time', 'product', 'discount', 'location',
+    'exceptional', 'outstanding', 'highly recommend', 'wonderful experience',
   ]) assert.ok(systemInstruction.includes(phrase));
-  assert.match(systemInstruction, /business name is optional/i);
-  assert.match(systemInstruction, /Roman script only/);
-  assert.match(systemInstruction, /not a translation/);
+  assert.match(systemInstruction, /Business name max 1 draft me/);
+  assert.match(systemInstruction, /Hinglish must be Roman only/);
+  assert.match(systemInstruction, /not translation/);
 });

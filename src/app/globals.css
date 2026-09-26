@@ -66,6 +66,7 @@ h1, h2, h3, h4 { font-weight: 400; }
 .suggestion-list { transition: opacity .2s, border-color .25s; }
 .suggestion-list-ready { border-top-color: #857155; }
 .suggestion-status-ready { border-left: 2px solid #a59273; padding-left: 14px; }
+.suggestion-status-limit { border: 1px solid #bba783; border-left: 4px solid #8b6b3d; background: #e9dfcc; padding: 14px 16px; }
 .suggestion-pending { color: #8d8579; }
 .suggestion-skeleton { display: block; background: #ddd5c8; animation: suggestion-skeleton 1.45s ease-in-out infinite alternate; }
 .suggestion-pending:nth-child(2) .suggestion-skeleton { animation-delay: .18s; }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { draftLabels, type ReviewDraft } from "@/lib/review-contract";
+import { draftLabels, type GenerationState, type ReviewDraft } from "@/lib/review-contract";
 import { siteConfig } from "@/config/site";
 import { Arrow } from "../icons";
 import type { GenerationStatus } from "./types";
@@ -22,9 +22,9 @@ export function ReviewSuggestionCard({ review, index, selected, disabled, onSele
   );
 }
 
-export function ReviewResults({ reviews, selected, copyStatus, copyFeedbackId, generationStatus, arrivalId, onSelect, onRetry, onRegenerate }: {
+export function ReviewResults({ reviews, selected, copyStatus, copyFeedbackId, generationStatus, generation, arrivalId, onSelect, onRetry, onRegenerate }: {
   reviews: ReviewDraft[]; selected: string | null; copyStatus: string; copyFeedbackId: number;
-  generationStatus: GenerationStatus; arrivalId: number;
+  generationStatus: GenerationStatus; generation: GenerationState | null; arrivalId: number;
   onSelect: (id: string) => void; onRetry: () => void; onRegenerate: () => void;
 }) {
   const statusRef = useRef<HTMLDivElement>(null);
@@ -58,13 +58,16 @@ export function ReviewResults({ reviews, selected, copyStatus, copyFeedbackId, g
 
   return (
     <div>
-      <div ref={statusRef} className={`suggestion-status mt-6 ${generationStatus === "success" ? "suggestion-status-ready" : ""}`}>
+      <div ref={statusRef} className={`suggestion-status mt-6 ${generationStatus === "success" ? "suggestion-status-ready" : generationStatus === "limit" ? "suggestion-status-limit" : ""}`}>
         {generationStatus === "loading" ? <>
           <p className="eyebrow flex items-center gap-3 text-[#756448]"><span className="generation-line" />CREATING YOUR SUGGESTIONS...</p>
           <p className="mt-2 text-sm text-muted">Using your visit details to prepare a few starting points.</p>
         </> : generationStatus === "success" ? <>
           <p className="eyebrow text-[#756448]"><span className="mr-2 text-sm" aria-hidden="true">✓</span>YOUR SUGGESTIONS ARE READY</p>
           <p className="mt-2 text-sm text-muted">Choose one below to copy it. Paste and edit on Google.</p>
+        </> : generationStatus === "limit" ? <>
+          <p className="text-sm font-semibold text-[#4c351d]">Suggestion limit reached</p>
+          <p className="mt-1 text-sm text-[#514536]">{reviews.length ? "You can still choose one of your suggestions and continue to Google." : "You can write your review directly on Google."}</p>
         </> : generationStatus === "error" ? <>
           <p className="eyebrow text-[#756448]">WE COULDN&apos;T CREATE SUGGESTIONS</p>
           <p className="mt-2 text-sm text-muted">You can try again or write your review directly on Google.</p>
@@ -92,10 +95,13 @@ export function ReviewResults({ reviews, selected, copyStatus, copyFeedbackId, g
       {reviews.length > 0 && <div ref={suggestionsRef} className={`suggestion-list mt-5 border-t border-line ${generationStatus === "loading" ? "suggestions-loading" : generationStatus === "success" ? "suggestion-list-ready" : ""}`} role="group" aria-label="Writing suggestions" aria-busy={generationStatus === "loading"}>
         {reviews.map((review, index) => <ReviewSuggestionCard key={review.type} review={review} index={index} selected={selected === review.type} disabled={generationStatus === "loading"} onSelect={() => onSelect(review.type)} />)}
       </div>}
-      {generationStatus === "success" && <>
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-        <button type="button" className="action action-outline flex-1" onClick={onRegenerate}>Regenerate reviews</button>
-        <a className="action flex-1" href={siteConfig.googleReviewUrl} target="_blank" rel="noopener noreferrer">Continue to Google <Arrow diagonal /><span className="sr-only"> (opens in a new tab)</span></a>
+      {(generationStatus === "success" || generationStatus === "limit") && <>
+      <div className={`mt-6 flex flex-col gap-3 ${reviews.length > 0 ? "sm:grid sm:grid-cols-2 sm:items-start" : ""}`}>
+        {reviews.length > 0 && <div>
+          <button type="button" className="action action-outline w-full" disabled={generationStatus === "limit" || generation?.remaining === 0} onClick={onRegenerate}>{generationStatus === "limit" || generation?.remaining === 0 ? "Generation limit reached" : "Regenerate"}</button>
+          {generation && <p className="mt-2 text-xs text-muted" aria-live="polite">{generation.remaining} {generation.remaining === 1 ? "generation" : "generations"} left</p>}
+        </div>}
+        <a className="action w-full" href={siteConfig.googleReviewUrl} target="_blank" rel="noopener noreferrer">Continue to Google <Arrow diagonal /><span className="sr-only"> (opens in a new tab)</span></a>
       </div>
       {copyStatus && copyStatus !== "copied" && <p role="alert" className="mt-3 text-sm">{copyStatus}</p>}
       {copyStatus === "copied" && <div key={copyFeedbackId} className="copy-confirmation" role="status" aria-live="polite">

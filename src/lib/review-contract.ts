@@ -18,6 +18,18 @@ export const draftLabels = {
 
 export type ReviewDraftType = keyof typeof draftLabels;
 export type ReviewDraft = { type: ReviewDraftType; label: string; text: string };
+export const MAX_GENERATIONS = 3;
+export type GenerationState = { used: number; remaining: number; limit: number };
+
+export function parseGenerationState(value: unknown): GenerationState {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("Invalid generation state.");
+  const state = value as Record<string, unknown>;
+  if (state.limit !== MAX_GENERATIONS || !Number.isInteger(state.used) || typeof state.used !== "number" ||
+      state.used < 0 || state.used > MAX_GENERATIONS || state.remaining !== MAX_GENERATIONS - state.used) {
+    throw new Error("Invalid generation state.");
+  }
+  return { used: state.used, remaining: state.remaining as number, limit: MAX_GENERATIONS };
+}
 
 // YAHAN CHANGE - previousReviews add kiya
 export type ReviewInput = {
@@ -34,6 +46,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function parseReviewInput(value: unknown): ReviewInput {
   if (!isRecord(value)) {
+    throw new Error("Invalid review selection.");
+  }
+  if (Object.keys(value).some(key => !["service", "previousReviews", "attemptId"].includes(key))) {
     throw new Error("Invalid review selection.");
   }
 
