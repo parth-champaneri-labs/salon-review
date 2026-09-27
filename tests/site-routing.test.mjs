@@ -68,7 +68,7 @@ test('root redirects server-side and review route still guards unknown clients',
 test('branded 404 links to the company origin and the local review path', async () => {
   const notFound = await readFile('src/app/not-found.tsx', 'utf8');
   assert.match(notFound, /href=\{siteConfig\.companyUrl\}>Go to Lumenspire/);
-  assert.match(notFound, /href=\{siteConfig\.reviewPath\}>Open review page/);
+  assert.match(notFound, /href=\{siteConfig\.reviewPath\}>Open \{siteConfig\.businessName\} review/);
   assert.doesNotMatch(notFound, /href=\{siteConfig\.siteUrl\}/);
 });
 

@@ -63,7 +63,7 @@ export const siteConfig = {
   businessDescriptor: "Family Salon & Academy",
   clientSlug,
   googleReviewUrl: normalizeGoogleReviewUrl(
-    process.env.NEXT_PUBLIC_GOOGLE_REVIEW_URL ?? "https://g.page/r/CXyzMGBwIejGEAE/review",
+    process.env.NEXT_PUBLIC_GOOGLE_REVIEW_URL ?? "https://g.page/r/CTRtkgCvTqETEBM/review",
   ),
   heroVideo: "/videos/hero.mp4",
 } as const;

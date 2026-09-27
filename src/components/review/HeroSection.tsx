@@ -37,8 +37,8 @@ export function HeroSection() {
       <video
         ref={videoRef}
         className="hero-film absolute inset-0 -z-20 h-full w-full object-cover"
-        autoPlay muted loop playsInline preload="metadata"
-        poster="/images/salon-styling.jpg"
+        autoPlay muted loop playsInline preload="auto"
+        poster="/videos/hair-driver-hero-poster.webp"
         aria-hidden="true" tabIndex={-1}
         onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)}
       >

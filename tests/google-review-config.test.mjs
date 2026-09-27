@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { normalizeGoogleReviewUrl, siteConfig } from '../src/config/site.ts';
 
-const officialReviewUrl = 'https://g.page/r/CXyzMGBwIejGEAE/review';
+const officialReviewUrl = 'https://g.page/r/CTRtkgCvTqETEBM/review';
 
 test('configured Google review destination is a valid HTTPS review URL', () => {
   assert.equal(siteConfig.googleReviewUrl, officialReviewUrl);
@@ -35,4 +35,14 @@ test('environment override changes the destination without editing components', 
   const component = await readFile('src/components/review/ReviewResults.tsx', 'utf8');
   assert.match(component, /href=\{siteConfig\.googleReviewUrl\}/g);
   assert.doesNotMatch(component, /g\.page|google\.com/);
+});
+
+test('Continue to Google uses a normal same-tab link without custom navigation state', async () => {
+  const component = await readFile('src/components/review/ReviewResults.tsx', 'utf8');
+  const flow = await readFile('src/components/review/ReviewFlow.tsx', 'utf8');
+  const continueLink = component.match(/<a\b[^>]*>Continue to Google[\s\S]*?<\/a>/)?.[0];
+  assert.ok(continueLink);
+  assert.match(continueLink, /href=\{siteConfig\.googleReviewUrl\}/);
+  assert.doesNotMatch(continueLink, /target=|opens in a new tab/);
+  assert.doesNotMatch(`${component}\n${flow}`, /window\.open\s*\(|location\.replace\s*\(|history\.replaceState\s*\(|sessionStorage|localStorage|pageshow|popstate/);
 });
