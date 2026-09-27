@@ -143,12 +143,7 @@ export async function generateWithModel(model: string, input: ReviewInput): Prom
       temperature: 1.0,
       topP: 0.95,
       topK: 64,
-      // Thinking removed: this is short creative text, not a reasoning task.
-      // Thinking tokens bill as output tokens with no quality benefit here,
-      // on either model. Only kept as a no-op for gemini-3.8-flash in case
-      // the fallback path is hit and thinking is required by that model's
-      // config surface; set to NONE explicitly rather than omitted.
-      ...(model === FALLBACK_MODEL ? { thinkingConfig: { thinkingLevel: ThinkingLevel.NONE } } : {}),
+      thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
       maxOutputTokens: 800,
       httpOptions: { timeout: 12000, retryOptions: { attempts: 1 } },
       abortSignal: AbortSignal.timeout(12000),

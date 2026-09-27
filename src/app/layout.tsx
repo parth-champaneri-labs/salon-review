@@ -1,4 +1,3 @@
-import { siteConfig } from "@/config/site";
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Manrope } from "next/font/google";
 import "./globals.css";
@@ -7,10 +6,9 @@ const display = Cormorant_Garamond({ variable: "--font-display", subsets: ["lati
 const sans = Manrope({ variable: "--font-ui", subsets: ["latin"], display: "swap" });
 
 export const metadata: Metadata = {
-  title: `A few words, a beautiful difference | ${siteConfig.businessName}`,
-  description: `Thank you for choosing ${siteConfig.businessName} — ${siteConfig.businessDescriptor}. Share your salon experience with a little review inspiration, then leave your review on Google.`,
-  robots: { index: false, follow: false },
-  icons: { icon: "/logo/logo.png" },
+  title: "Lumenspire",
+  description: "Thoughtful digital experiences by Lumenspire.",
+  icons: { icon: "/icon.png" },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
