@@ -104,7 +104,6 @@ export function ReviewFlow() {
       const payload = {
         service,
         previousReviews: regenerate ? reviews.map(r => r.text) : [], // purane 3 bhej do
-        attemptId: `${Date.now()}-${Math.random().toString(36).slice(2)}` // cache bust
       };
 
       const response = await fetch("/api/generate-review", {

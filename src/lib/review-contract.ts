@@ -35,7 +35,6 @@ export function parseGenerationState(value: unknown): GenerationState {
 export type ReviewInput = {
   service: string;
   previousReviews?: string[];
-  attemptId?: string;
 };
 
 export const generationErrorMessage = "We couldn't prepare your review just now. Please try again.";
@@ -48,7 +47,7 @@ export function parseReviewInput(value: unknown): ReviewInput {
   if (!isRecord(value)) {
     throw new Error("Invalid review selection.");
   }
-  if (Object.keys(value).some(key => !["service", "previousReviews", "attemptId"].includes(key))) {
+  if (Object.keys(value).some(key => !["service", "previousReviews"].includes(key))) {
     throw new Error("Invalid review selection.");
   }
 
@@ -63,13 +62,32 @@ export function parseReviewInput(value: unknown): ReviewInput {
   }
 
   // NAYA - previousReviews optional, agar hai to clean karo
+ 
+  // let previousReviews: string[] | undefined;
+  // if ("previousReviews" in value && Array.isArray(value.previousReviews)) {
+  //   previousReviews = (value.previousReviews as unknown[])
+  //    .filter((t): t is string => typeof t === "string" && t.trim().length > 2)
+  //    .map(t => t.trim().slice(0, 500))
+  //    .slice(0, 6); // max 6 purane
+  // }
+
   let previousReviews: string[] | undefined;
-  if ("previousReviews" in value && Array.isArray(value.previousReviews)) {
-    previousReviews = (value.previousReviews as unknown[])
-     .filter((t): t is string => typeof t === "string" && t.trim().length > 2)
-     .map(t => t.trim().slice(0, 500))
-     .slice(0, 6); // max 6 purane
+
+if ("previousReviews" in value) {
+  if (!Array.isArray(value.previousReviews)) {
+    throw new Error("Invalid previous reviews.");
   }
+
+  previousReviews = value.previousReviews
+    .filter(
+      (text): text is string =>
+        typeof text === "string" &&
+        text.trim().length > 2
+    )
+    .map(text => text.trim().slice(0, 500))
+    .slice(0, 6);
+}
+
 
   return {
     service: value.service.trim(),
