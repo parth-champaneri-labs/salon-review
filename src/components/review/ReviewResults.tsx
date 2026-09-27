@@ -80,7 +80,7 @@ export function ReviewResults({ reviews, selected, copyStatus, copyFeedbackId, g
           <p className="mt-1 text-sm text-muted">Generate a few review suggestions based on your visit.</p>
         </>}
       </div>
-      {generationStatus === "loading" && reviews.length === 0 && <div className="suggestion-list mt-5 border-t border-line" aria-hidden="true">
+      {generationStatus === "loading" && <div className="suggestion-list mt-5 border-t border-line" aria-hidden="true">
         {Object.values(draftLabels).map((label, index) => <div key={label} className="suggestion-pending border-b border-line px-4 py-5 text-sm sm:px-5">
           <div className="flex items-center justify-between gap-4">
             <span><span className="mr-3 text-xs">0{index + 1}</span>{label}</span>
@@ -92,8 +92,8 @@ export function ReviewResults({ reviews, selected, copyStatus, copyFeedbackId, g
           </div>
         </div>)}
       </div>}
-      {reviews.length > 0 && <div ref={suggestionsRef} className={`suggestion-list mt-5 border-t border-line ${generationStatus === "loading" ? "suggestions-loading" : generationStatus === "success" ? "suggestion-list-ready" : ""}`} role="group" aria-label="Writing suggestions" aria-busy={generationStatus === "loading"}>
-        {reviews.map((review, index) => <ReviewSuggestionCard key={review.type} review={review} index={index} selected={selected === review.type} disabled={generationStatus === "loading"} onSelect={() => onSelect(review.type)} />)}
+      {generationStatus !== "loading" && reviews.length > 0 && <div ref={suggestionsRef} className={`suggestion-list mt-5 border-t border-line ${generationStatus === "success" ? "suggestion-list-ready" : ""}`} role="group" aria-label="Writing suggestions">
+        {reviews.map((review, index) => <ReviewSuggestionCard key={review.type} review={review} index={index} selected={selected === review.type} disabled={false} onSelect={() => onSelect(review.type)} />)}
       </div>}
       {(generationStatus === "success" || generationStatus === "limit") && <>
       <div className={`mt-6 flex flex-col gap-3 ${reviews.length > 0 ? "sm:grid sm:grid-cols-2 sm:items-start" : ""}`}>
