@@ -5,32 +5,34 @@ Next.js, TypeScript and Tailwind salon review page with two steps and server-sid
 ## Local setup
 
 1. Run npm install.
-2. Set `NEXT_PUBLIC_SITE_URL=http://localhost:3000` and `NEXT_PUBLIC_GOOGLE_REVIEW_URL=https://g.page/r/CXyzMGBwIejGEAE/review` in `.env.local` (see `.env.example`). Add `GEMINI_API_KEY` and `REVIEW_COOKIE_SECRET` there too. Use at least 32 random characters for the cookie secret. Keep both secrets server-only; never prefix them with `NEXT_PUBLIC_`.
+2. Set `NEXT_PUBLIC_SITE_URL=http://localhost:3000`, `NEXT_PUBLIC_COMPANY_URL=https://lumenspirelabs.com`, and the existing `NEXT_PUBLIC_GOOGLE_REVIEW_URL` in `.env.local` (see `.env.example`). Add `GEMINI_API_KEY` and `REVIEW_COOKIE_SECRET` there too. Use at least 32 random characters for the cookie secret. Keep both secrets server-only; never prefix them with `NEXT_PUBLIC_`.
 3. Run npm run dev. Restart the dev server after changing any environment value. Set the same `REVIEW_COOKIE_SECRET` in the production hosting environment.
-4. Open http://localhost:3000/review/hair-driver and select Start your review.
+4. Open http://localhost:3000. The server redirects to `/review/hair-driver`, where you can select Start your review.
 
-## Client URL and printed QR
+## Domains and review route
 
-`src/config/site.ts` defines the single client slug, business identity, review route, stable QR route, and derived absolute URLs. The root `/` is a small Lumenspire holding page; the existing Hair Driver review experience lives at `/review/hair-driver`. Only the configured slug works. `/r/hair-driver` is a server-side 307 redirect to the review page. Unknown slugs and routes return the branded 404 page.
+`src/config/site.ts` defines the single client slug, business identity, company URL, review route, and derived application URLs. The salon app's root `/` redirects server-side to `/review/hair-driver`. Only the configured slug works; unknown slugs and routes return the branded 404 page. The 404's company link uses `siteConfig.companyUrl`.
 
-Set `NEXT_PUBLIC_SITE_URL=https://lumenspirelabs.com` in production and rebuild/redeploy. It must be a plain HTTP(S) origin, without a path, query, credentials, or extra trailing slash. Change `clientSlug` in `src/config/site.ts` if the one configured client changes. All route URLs derive from this config. The final production URLs are:
+| Purpose | URL | Owner |
+| --- | --- | --- |
+| Main Lumenspire Labs website | `https://lumenspirelabs.com` | Separate main website project |
+| Hair Driver app | `https://hairdriver.lumenspirelabs.com` | This salon-review project |
+| Hair Driver review page | `https://hairdriver.lumenspirelabs.com/review/hair-driver` | This salon-review project |
+| Permanent physical QR URL | `https://lumenspirelabs.com/r/hair-driver` | Separate main website project |
 
-- Review page: `https://lumenspirelabs.com/review/hair-driver`
-- Permanent printed QR target: `https://lumenspirelabs.com/r/hair-driver`
-- QR SVG: `https://lumenspirelabs.com/api/qr/review`
-- QR download: `https://lumenspirelabs.com/api/qr/review?download=1`
+The intended permanent QR flow is:
 
-Open the SVG endpoint in a browser to preview/save it, or use the download URL. It is generated locally with high error correction, a four-module quiet zone, white background, dark modules, and `public/logo/qr-logo.png` on a buffered center plate. If that logo unexpectedly cannot load, the endpoint returns a plain QR. `src/app/icon.png` is the browser favicon; a hard refresh or browser restart may be needed after deploying because favicons are cached heavily.
+`lumenspirelabs.com/r/hair-driver` → `hairdriver.lumenspirelabs.com` → `/review/hair-driver`
 
-**Do not send the QR to final print yet.** Deploy the production site, configure `NEXT_PUBLIC_SITE_URL` as above, generate the final production SVG, and scan it on real phones. A printed QR's encoded URL cannot change without reprinting. The `/r/hair-driver` layer lets the internal review page move later while preserving the printed URL. Print the QR at roughly **4 cm × 4 cm or larger**, and keep the white quiet zone unobstructed by text or borders.
+The main website project must implement the permanent `/r/hair-driver` redirect. Prefer redirecting it to the salon app's root so the review page path can change later without reprinting the QR. This repository does not serve `/r/hair-driver`, generate a QR, or expose a QR SVG endpoint. Do not print the QR until the main website redirect and salon deployment are live and tested on real phones. `src/app/icon.png` remains the browser favicon; a hard refresh or browser restart may be needed after deployment because favicons are cached heavily.
 
-A phone cannot reach another computer's `localhost`. For real-device development, use a reachable LAN origin such as `http://192.168.x.x:3000`, set it as `NEXT_PUBLIC_SITE_URL`, and run Next.js on the LAN. Do not use a LAN URL for final printing.
+For Vercel production, add `hairdriver.lumenspirelabs.com` as a custom domain on this salon-review Vercel project and configure its DNS as Vercel instructs. A subdomain of the existing `lumenspirelabs.com` domain does not require another domain purchase. Set `NEXT_PUBLIC_SITE_URL=https://hairdriver.lumenspirelabs.com` and `NEXT_PUBLIC_COMPANY_URL=https://lumenspirelabs.com` in this project's production environment. Keep the official `NEXT_PUBLIC_GOOGLE_REVIEW_URL`, `GEMINI_API_KEY`, and `REVIEW_COOKIE_SECRET` configured. `NEXT_PUBLIC_` values can be baked into the build, so redeploy after changing them. `NEXT_PUBLIC_SITE_URL` and `NEXT_PUBLIC_COMPANY_URL` must be plain HTTP(S) origins without paths, queries, credentials, or extra trailing slashes.
 
-Before printing, scan a sample at its intended size using Android's camera, Google Lens, and an iPhone camera if available. Test at normal brightness from about 20–40 cm. Each scan should open `/r/hair-driver`, then land on `/review/hair-driver`. Automated tests do not replace this physical check.
+A phone cannot reach another computer's `localhost`. For real-device development, use a reachable LAN origin such as `http://192.168.x.x:3000` as `NEXT_PUBLIC_SITE_URL` and run Next.js on the LAN. Do not use a LAN URL for final printing.
 
 Choose a service, then Continue. The page shows a writing state while the request runs, followed by three valid drafts: Warm & natural, Short & simple, Natural Hinglish.
 
-Selecting a suggestion copies it automatically. Continue to Google opens the salon's official review form; the customer pastes or edits their review and submits it manually. The destination is read through `siteConfig.googleReviewUrl` from `NEXT_PUBLIC_GOOGLE_REVIEW_URL`. To change it later, update that environment variable, then restart local development or rebuild and redeploy production. Use the same Google review URL in production alongside `NEXT_PUBLIC_SITE_URL=https://lumenspirelabs.com`.
+Selecting a suggestion copies it automatically. Continue to Google opens the salon's official review form; the customer pastes or edits their review and submits it manually. The destination is read through `siteConfig.googleReviewUrl` from `NEXT_PUBLIC_GOOGLE_REVIEW_URL`. To change it later, update that environment variable, then restart local development or rebuild and redeploy production. Use the same Google review URL in production alongside `NEXT_PUBLIC_SITE_URL=https://hairdriver.lumenspirelabs.com`.
 
 Back preserves the selected service. An unchanged service reuses the existing suggestions in memory; changing the service requests new suggestions on Continue. The first successful generation and two successful regenerations use the three available generations for that browser. Failed provider requests do not use a generation. The signed, HTTP-only cookie expires after 12 hours; no database is required.
 

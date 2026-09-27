@@ -14,7 +14,7 @@ export default function NotFound() {
         <h1 className="flow-display mt-5">A little off the path.</h1>
         <p className="mt-6 max-w-lg text-base text-muted">The page you’re looking for doesn’t exist or may have moved.</p>
         <div className="mt-8 flex flex-wrap gap-3">
-          <a className="action" href={siteConfig.siteUrl}>Go to Lumenspire →</a>
+          <a className="action" href={siteConfig.companyUrl}>Go to Lumenspire →</a>
           <a className="action action-outline" href={siteConfig.reviewPath}>Open review page →</a>
         </div>
       </div>

@@ -1,13 +1,13 @@
-export function normalizeSiteUrl(value: string): string {
+export function normalizeSiteUrl(value: string, variableName = "NEXT_PUBLIC_SITE_URL"): string {
   let url: URL;
   try {
     url = new URL(value.trim());
   } catch {
-    throw new Error("NEXT_PUBLIC_SITE_URL must be an absolute HTTP or HTTPS URL.");
+    throw new Error(`${variableName} must be an absolute HTTP or HTTPS URL.`);
   }
 
   if (!(["http:", "https:"].includes(url.protocol)) || !url.hostname || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
-    throw new Error("NEXT_PUBLIC_SITE_URL must be an HTTP or HTTPS origin without a path, query, or credentials.");
+    throw new Error(`${variableName} must be an HTTP or HTTPS origin without a path, query, or credentials.`);
   }
 
   return url.origin;
@@ -19,13 +19,10 @@ export function createSiteUrls(url: string, slug: string) {
     throw new Error("Client slug must contain only lowercase letters, numbers, and hyphens.");
   }
   const reviewPath = `/review/${slug}`;
-  const qrRedirectPath = `/r/${slug}`;
   return {
     siteUrl,
     reviewPath,
-    qrRedirectPath,
     reviewUrl: `${siteUrl}${reviewPath}`,
-    qrRedirectUrl: `${siteUrl}${qrRedirectPath}`,
   };
 }
 
@@ -48,7 +45,7 @@ export function normalizeGoogleReviewUrl(value: string): string {
 const clientSlug = "hair-driver";
 const siteUrls = createSiteUrls(
   process.env.NEXT_PUBLIC_SITE_URL ??
-    (process.env.NODE_ENV === "production" ? "https://lumenspirelabs.com" : "http://localhost:3000"),
+    (process.env.NODE_ENV === "production" ? "https://hairdriver.lumenspirelabs.com" : "http://localhost:3000"),
   clientSlug,
 );
 
@@ -58,6 +55,10 @@ export function isConfiguredClientSlug(slug: string): boolean {
 
 export const siteConfig = {
   ...siteUrls,
+  companyUrl: normalizeSiteUrl(
+    process.env.NEXT_PUBLIC_COMPANY_URL ?? "https://lumenspirelabs.com",
+    "NEXT_PUBLIC_COMPANY_URL",
+  ),
   businessName: "Hair Driver",
   businessDescriptor: "Family Salon & Academy",
   clientSlug,
