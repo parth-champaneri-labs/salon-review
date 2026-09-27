@@ -5,7 +5,7 @@ Next.js, TypeScript and Tailwind salon review page with two steps and server-sid
 ## Local setup
 
 1. Run npm install.
-2. Set `NEXT_PUBLIC_SITE_URL=http://localhost:3000`, `NEXT_PUBLIC_COMPANY_URL=https://lumenspirelabs.com`, and the existing `NEXT_PUBLIC_GOOGLE_REVIEW_URL` in `.env.local` (see `.env.example`). Add `GEMINI_API_KEY` and `REVIEW_COOKIE_SECRET` there too. Use at least 32 random characters for the cookie secret. Keep both secrets server-only; never prefix them with `NEXT_PUBLIC_`.
+2. Set `NEXT_PUBLIC_SITE_URL=http://localhost:3000`, `NEXT_PUBLIC_COMPANY_URL=https://lumenspirelabs.com`, and `NEXT_PUBLIC_GOOGLE_REVIEW_URL=https://g.page/r/CTRtkgCvTqETEBM/review` in `.env.local` (see `.env.example`). Add `GEMINI_API_KEY` and `REVIEW_COOKIE_SECRET` there too. Use at least 32 random characters for the cookie secret. Keep both secrets server-only; never prefix them with `NEXT_PUBLIC_`.
 3. Run npm run dev. Restart the dev server after changing any environment value. Set the same `REVIEW_COOKIE_SECRET` in the production hosting environment.
 4. Open http://localhost:3000. The server redirects to `/review/hair-driver`, where you can select Start your review.
 
@@ -26,7 +26,7 @@ The intended permanent QR flow is:
 
 The main website project must implement the permanent `/r/hair-driver` redirect. Prefer redirecting it to the salon app's root so the review page path can change later without reprinting the QR. This repository does not serve `/r/hair-driver`, generate a QR, or expose a QR SVG endpoint. Do not print the QR until the main website redirect and salon deployment are live and tested on real phones. `src/app/icon.png` remains the browser favicon; a hard refresh or browser restart may be needed after deployment because favicons are cached heavily.
 
-For Vercel production, add `hairdriver.lumenspirelabs.com` as a custom domain on this salon-review Vercel project and configure its DNS as Vercel instructs. A subdomain of the existing `lumenspirelabs.com` domain does not require another domain purchase. Set `NEXT_PUBLIC_SITE_URL=https://hairdriver.lumenspirelabs.com` and `NEXT_PUBLIC_COMPANY_URL=https://lumenspirelabs.com` in this project's production environment. Keep the official `NEXT_PUBLIC_GOOGLE_REVIEW_URL`, `GEMINI_API_KEY`, and `REVIEW_COOKIE_SECRET` configured. `NEXT_PUBLIC_` values can be baked into the build, so redeploy after changing them. `NEXT_PUBLIC_SITE_URL` and `NEXT_PUBLIC_COMPANY_URL` must be plain HTTP(S) origins without paths, queries, credentials, or extra trailing slashes.
+For Vercel production, add `hairdriver.lumenspirelabs.com` as a custom domain on this salon-review Vercel project and configure its DNS as Vercel instructs. A subdomain of the existing `lumenspirelabs.com` domain does not require another domain purchase. Set `NEXT_PUBLIC_SITE_URL=https://hairdriver.lumenspirelabs.com`, `NEXT_PUBLIC_COMPANY_URL=https://lumenspirelabs.com`, and `NEXT_PUBLIC_GOOGLE_REVIEW_URL=https://g.page/r/CTRtkgCvTqETEBM/review` in this project's production environment. Keep `GEMINI_API_KEY` and `REVIEW_COOKIE_SECRET` configured. `NEXT_PUBLIC_` values can be baked into the build, so redeploy after changing them. `NEXT_PUBLIC_SITE_URL` and `NEXT_PUBLIC_COMPANY_URL` must be plain HTTP(S) origins without paths, queries, credentials, or extra trailing slashes.
 
 A phone cannot reach another computer's `localhost`. For real-device development, use a reachable LAN origin such as `http://192.168.x.x:3000` as `NEXT_PUBLIC_SITE_URL` and run Next.js on the LAN. Do not use a LAN URL for final printing.
 

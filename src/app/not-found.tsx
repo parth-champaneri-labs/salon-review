@@ -15,7 +15,7 @@ export default function NotFound() {
         <p className="mt-6 max-w-lg text-base text-muted">The page you’re looking for doesn’t exist or may have moved.</p>
         <div className="mt-8 flex flex-wrap gap-3">
           <a className="action" href={siteConfig.companyUrl}>Go to Lumenspire →</a>
-          <a className="action action-outline" href={siteConfig.reviewPath}>Open review page →</a>
+          <a className="action action-outline" href={siteConfig.reviewPath}>Open {siteConfig.businessName} review →</a>
         </div>
       </div>
       <p className="text-xs text-muted">© {new Date().getFullYear()} Lumenspire</p>

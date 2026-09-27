@@ -101,7 +101,7 @@ export function ReviewResults({ reviews, selected, copyStatus, copyFeedbackId, g
           <button type="button" className="action action-outline w-full" disabled={generationStatus === "limit" || generation?.remaining === 0} onClick={onRegenerate}>{generationStatus === "limit" || generation?.remaining === 0 ? "Generation limit reached" : "Regenerate"}</button>
           {generation && <p className="mt-2 text-xs text-muted" aria-live="polite">{generation.remaining} {generation.remaining === 1 ? "generation" : "generations"} left</p>}
         </div>}
-        <a className="action w-full" href={siteConfig.googleReviewUrl} target="_blank" rel="noopener noreferrer">Continue to Google <Arrow diagonal /><span className="sr-only"> (opens in a new tab)</span></a>
+        <a className="action w-full" href={siteConfig.googleReviewUrl}>Continue to Google <Arrow diagonal /></a>
       </div>
       {copyStatus && copyStatus !== "copied" && <p role="alert" className="mt-3 text-sm">{copyStatus}</p>}
       {copyStatus === "copied" && <div key={copyFeedbackId} className="copy-confirmation" role="status" aria-live="polite">

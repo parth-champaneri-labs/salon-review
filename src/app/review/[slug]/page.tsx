@@ -4,7 +4,7 @@ import { ReviewExperience } from "@/components/review/ReviewExperience";
 import { isConfiguredClientSlug, siteConfig } from "@/config/site";
 
 export const metadata: Metadata = {
-  title: `A few words, a beautiful difference | ${siteConfig.businessName}`,
+  title: `Share your experience | ${siteConfig.businessName}`,
   description: `Thank you for choosing ${siteConfig.businessName} — ${siteConfig.businessDescriptor}. Share your salon experience with a little review inspiration, then leave your review on Google.`,
   robots: { index: false, follow: false },
 };
