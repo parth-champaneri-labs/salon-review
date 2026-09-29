@@ -31,7 +31,8 @@ function assertServicePrompt(prompt, service) {
 test('validates service-only selections', () => {
   assert.deepEqual(allowedServices, [
     'Haircut', 'Hair Styling', 'Hair Color', 'Hair Spa', 'Head Massage',
-    'Beard / Grooming', 'Facial', 'Cleanup', 'Makeup',
+    'Beard', 'Facial / Cleanup', 'Waxing', 'Hair Extensions',
+    'Makeup / Grooming', 'Hair Treatments',
   ]);
   for (const service of allowedServices) {
     const value = { service };
@@ -45,6 +46,7 @@ test('malformed or unapproved input returns 400 before any generation', async ()
     {}, null, [], { experienceTags: [] }, { service: '' },
     { service: ' ' }, { service: 'x'.repeat(81) },
     { service: 'Invented service' }, { service: 'Others' },
+    { service: 'Facial' }, { service: 'Beard / Grooming' },
     { service: 'haircut' }, { service: 'Haircut ' },
     { service: 'Haircut', experienceTags: 'Friendly staff' },
     { service: 'Haircut', experienceTags: ['Friendly staff'] },
@@ -218,7 +220,7 @@ test('the SDK receives only the selected service for different service types', a
   });
   const cases = [
     {
-      input: { service: 'Facial' },
+      input: { service: 'Facial / Cleanup' },
       texts: ['My skin felt fresh after the facial.', 'Nice facial, felt fresh.', 'Facial ke baad kaafi fresh laga.'],
     },
     {

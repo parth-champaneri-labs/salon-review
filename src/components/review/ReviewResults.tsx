@@ -73,7 +73,7 @@ export function ReviewResults({ reviews, selected, copyStatus, copyFeedbackId, g
           <p className="mt-2 text-sm text-muted">You can try again or write your review directly on Google.</p>
           <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
             <button type="button" className="underlink" onClick={onRetry}>Try again</button>
-            <a className="underlink" href={siteConfig.googleReviewUrl} target="_blank" rel="noopener noreferrer">Write on Google<span className="sr-only"> (opens in a new tab)</span></a>
+            <a className="underlink" href={siteConfig.googleReviewUrl}>Write on Google</a>
           </div>
         </> : <>
           <p className="text-sm">Need a little inspiration?</p>

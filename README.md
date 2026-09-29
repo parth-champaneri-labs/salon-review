@@ -30,7 +30,7 @@ For Vercel production, add `hairdriver.lumenspirelabs.com` as a custom domain on
 
 A phone cannot reach another computer's `localhost`. For real-device development, use a reachable LAN origin such as `http://192.168.x.x:3000` as `NEXT_PUBLIC_SITE_URL` and run Next.js on the LAN. Do not use a LAN URL for final printing.
 
-Choose a service, then Continue. The page shows a writing state while the request runs, followed by three valid drafts: Warm & natural, Short & simple, Natural Hinglish.
+Choose a service, then Continue. The page shows a writing state while the request runs, followed by three valid drafts: Warm & natural, Short & simple, Natural Hinglish. Customers can also write directly on Google from the service step without selecting a service or generating a draft; all Google review links open in the same tab.
 
 Selecting a suggestion copies it automatically. Continue to Google opens the salon's official review form; the customer pastes or edits their review and submits it manually. The destination is read through `siteConfig.googleReviewUrl` from `NEXT_PUBLIC_GOOGLE_REVIEW_URL`. To change it later, update that environment variable, then restart local development or rebuild and redeploy production. Use the same Google review URL in production alongside `NEXT_PUBLIC_SITE_URL=https://hairdriver.lumenspirelabs.com`.
 
@@ -49,7 +49,7 @@ For local testing, reset the visit in Chrome DevTools → Application → Cookie
 - src/components/review/ReviewFlow.tsx: loading, error/retry, in-memory drafts and navigation.
 - src/components/review/ReviewResults.tsx: suggestion rows, regeneration, copy feedback and Google action.
 
-The browser sends the selected service and, when regenerating, the previous drafts. The server checks the service against the nine-value `allowedServices` enum, accepts only the supported request fields, and rejects unknown or malformed selections with HTTP 400 before calling Gemini. The UI list is not a security boundary.
+The browser sends the selected service and, when regenerating, the previous drafts. The server checks the service against the eleven-value `allowedServices` enum, accepts only the supported request fields, and rejects unknown or malformed selections with HTTP 400 before calling Gemini. The UI list is not a security boundary.
 
 gemini-3.8-flash is always attempted first. HTTP 408, 429, 5xx, timeout/abort, or invalid primary output permits one sequential attempt of gemini-3.5-flash-lite. SDK automatic retries are disabled. Each model attempt has a 12-second deadline, with a 50-second client deadline. Both use the same prompt/schema and an 800-token output budget, temperature 1.25, topP 0.97 and topK 64. The primary explicitly uses ThinkingLevel.LOW; fallback reasoning remains at its default. Gemini receives the business name and selected service, with guidance to write short, service-specific drafts. The prompt prioritizes short everyday language and avoids unsupported scene-setting or filler.
 
@@ -72,7 +72,7 @@ Tests mock the provider/network, not application production behavior. They cover
 
 With a real key, check:
 - Haircut: three short drafts with different wording.
-- Facial: service-specific wording without extra visit details.
+- Facial / Cleanup: service-specific wording without extra visit details.
 - Hair Color: different wording from the haircut drafts.
 - Select a suggestion: it should copy to the clipboard, and the row should show Copied.
 - Regenerate reviews: a fresh request should run for the selected service.
