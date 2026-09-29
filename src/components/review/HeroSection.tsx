@@ -47,7 +47,7 @@ export function HeroSection() {
       <div className="absolute inset-0 -z-10 bg-black/35" />
       <header className="hero-brand flex w-full justify-center">
         <a href="#" aria-label={`${siteConfig.businessName} home`} className="inline-flex min-h-11 items-center">
-          <Image src="/logo/logofill.png" alt={`${siteConfig.businessName} — ${siteConfig.businessDescriptor}`} width={2172} height={724} sizes="(max-width: 640px) 170px, 210px" priority className="h-auto w-[170px] sm:w-[210px]" />
+          <Image src="/logo/logofill.png" alt={`${siteConfig.businessName} — ${siteConfig.businessDescriptor}`} width={2172} height={724} sizes="(max-width: 639px) 240px, (max-width: 1023px) 320px, 400px" priority className="h-auto w-[240px] sm:w-[320px] lg:w-[400px]" />
         </a>
       </header>
       <div className="hero-center flex w-full flex-1 flex-col items-center justify-center px-5">

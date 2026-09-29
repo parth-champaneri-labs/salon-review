@@ -44,5 +44,11 @@ test('Continue to Google uses a normal same-tab link without custom navigation s
   assert.ok(continueLink);
   assert.match(continueLink, /href=\{siteConfig\.googleReviewUrl\}/);
   assert.doesNotMatch(continueLink, /target=|opens in a new tab/);
+  assert.match(flow, /Or write your review directly on Google/);
+  for (const source of [component, flow]) {
+    const links = [...source.matchAll(/<a\b[^>]*href=\{siteConfig\.googleReviewUrl\}[^>]*>/g)];
+    assert.ok(links.length > 0);
+    for (const [link] of links) assert.doesNotMatch(link, /target=/);
+  }
   assert.doesNotMatch(`${component}\n${flow}`, /window\.open\s*\(|location\.replace\s*\(|history\.replaceState\s*\(|sessionStorage|localStorage|pageshow|popstate/);
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { siteConfig } from "@/config/site";
 import { parseGenerationState, parseReviewDrafts, type GenerationState, type ReviewDraft } from "@/lib/review-contract";
 import { Arrow } from "../icons";
 import { ServiceSelector } from "./ServiceSelector";
@@ -215,6 +216,7 @@ export function ReviewFlow() {
                   <div className="mt-4">
                     <button type="button" className="action w-full sm:w-auto" disabled={!service || loading} onClick={() => void continueToReview()}>Continue <Arrow /></button>
                   </div>
+                  <a className="underlink mt-3" href={siteConfig.googleReviewUrl}>Or write your review directly on Google <Arrow diagonal /></a>
                 </fieldset>
               </>}
               {step === "review" && <>

@@ -4,10 +4,12 @@ export const allowedServices = [
   "Hair Color",
   "Hair Spa",
   "Head Massage",
-  "Beard / Grooming",
-  "Facial",
-  "Cleanup",
-  "Makeup",
+  "Beard",
+  "Facial / Cleanup",
+  "Waxing",
+  "Hair Extensions",
+  "Makeup / Grooming",
+  "Hair Treatments",
 ] as const;
 
 export const draftLabels = {
