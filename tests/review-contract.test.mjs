@@ -22,9 +22,10 @@ const request = value => new Request('http://localhost/api/generate-review', {
 });
 
 function assertServicePrompt(prompt, service) {
-  assert.ok(prompt.startsWith(`Business: ${siteConfig.businessName}\nService: ${service}\nRequest ID: `));
-  assert.match(prompt, /CRITICAL: This is a REGENERATE request/);
-  assert.match(prompt, /Variation for THIS request only:/);
+  assert.ok(prompt.startsWith(`Business: ${siteConfig.businessName}\n\nService: ${service}\n\n`));
+  assert.match(prompt, /Write a short, genuinely positive review for this service only/);
+  assert.match(prompt, /Variation profile for this request:/);
+  assert.match(prompt, /No earlier drafts need to be avoided for this request/);
   assert.doesNotMatch(prompt, /Experience tags:/);
 }
 
@@ -148,7 +149,7 @@ test('missing key returns a clean 503 and never calls the network', async t => {
   assert.equal(fetchMock.mock.callCount(), 0);
 });
 
-test('SDK sends service-only selection with low thinking, bounded tokens and sampling settings', async t => {
+test('SDK sends service-only selection with minimal thinking, bounded tokens and sampling settings', async t => {
   const oldKey = process.env.GEMINI_API_KEY;
   process.env.GEMINI_API_KEY = 'test-only-placeholder';
   t.after(() => {
@@ -165,14 +166,14 @@ test('SDK sends service-only selection with low thinking, bounded tokens and sam
   assert.ok(calls[0].url.includes(PRIMARY_MODEL));
   assertServicePrompt(calls[0].body.contents[0].parts[0].text, 'Haircut');
   assert.equal(calls[0].body.generationConfig.responseMimeType, 'application/json');
-  assert.equal(calls[0].body.generationConfig.thinkingConfig.thinkingLevel, ThinkingLevel.LOW);
+  assert.equal(calls[0].body.generationConfig.thinkingConfig.thinkingLevel, ThinkingLevel.MINIMAL);
   assert.equal(calls[0].body.generationConfig.maxOutputTokens, 800);
-  assert.equal(calls[0].body.generationConfig.temperature, 1.35);
-  assert.equal(calls[0].body.generationConfig.topP, 0.98);
+  assert.equal(calls[0].body.generationConfig.temperature, 1.0);
+  assert.equal(calls[0].body.generationConfig.topP, 0.95);
   assert.equal(calls[0].body.generationConfig.topK, 64);
   assert.equal(calls[0].headers.get("x-server-timeout"), "12");
   assert.ok(calls[0].body.generationConfig.responseJsonSchema);
-  assert.match(calls[0].body.systemInstruction.parts[0].text, /One real angle per service/);
+  assert.match(calls[0].body.systemInstruction.parts[0].text, /Focus on ONE main service-related result or feeling per draft/);
 });
 
 test('real SDK fallback wiring handles temporary HTTP errors and malformed JSON', async t => {
@@ -244,7 +245,7 @@ test('the SDK receives only the selected service for different service types', a
   }
 });
 
-test('fallback keeps its default thinking while sharing token and timeout budgets', async t => {
+test('both models use minimal thinking and share token and timeout budgets', async t => {
   const oldKey = process.env.GEMINI_API_KEY;
   process.env.GEMINI_API_KEY = 'test-only-placeholder';
   t.after(() => {
@@ -270,14 +271,14 @@ test('fallback keeps its default thinking while sharing token and timeout budget
   assertServicePrompt(bodies[0].contents[0].parts[0].text, 'Haircut');
   assertServicePrompt(bodies[1].contents[0].parts[0].text, 'Haircut');
   assert.deepEqual(bodies[0].generationConfig.responseJsonSchema, bodies[1].generationConfig.responseJsonSchema);
-  assert.equal(bodies[0].generationConfig.thinkingConfig.thinkingLevel, ThinkingLevel.LOW);
-  assert.equal(Object.hasOwn(bodies[1].generationConfig, 'thinkingConfig'), false);
+  assert.equal(bodies[0].generationConfig.thinkingConfig.thinkingLevel, ThinkingLevel.MINIMAL);
+  assert.equal(bodies[1].generationConfig.thinkingConfig.thinkingLevel, ThinkingLevel.MINIMAL);
   for (const body of bodies) {
     assert.equal(body.generationConfig.maxOutputTokens, 800);
-    assert.equal(body.generationConfig.temperature, 1.35);
-    assert.equal(body.generationConfig.topP, 0.98);
+    assert.equal(body.generationConfig.temperature, 1.0);
+    assert.equal(body.generationConfig.topP, 0.95);
     assert.equal(body.generationConfig.topK, 64);
-    assert.match(body.contents[0].parts[0].text, /Service: Haircut\n/);
+    assert.match(body.contents[0].parts[0].text, /Service: Haircut\n\n/);
     assert.doesNotMatch(body.contents[0].parts[0].text, /Experience tags:/);
   }
 });
@@ -295,13 +296,13 @@ test('invalid primary output triggers exactly one fallback attempt', async () =>
 });
 
 test('prompt prioritizes short service-specific output and bans invented context', () => {
-  assert.match(systemInstruction, /One real angle per service/);
-  assert.match(systemInstruction, /All 3 drafts MUST have different words/);
+  assert.match(systemInstruction, /Focus on ONE main service-related result or feeling per draft/);
+  assert.match(systemInstruction, /Each of the three drafts must feel independently written/);
   for (const phrase of [
     'staff name', 'price', 'time', 'product', 'discount', 'location',
     'exceptional', 'outstanding', 'highly recommend', 'wonderful experience',
   ]) assert.ok(systemInstruction.includes(phrase));
-  assert.match(systemInstruction, /Business name max 1 draft me/);
-  assert.match(systemInstruction, /Hinglish must be Roman only/);
-  assert.match(systemInstruction, /not translation/);
+  assert.match(systemInstruction, /use it in at most one of the three drafts/);
+  assert.match(systemInstruction, /Roman Hindi \+ English in Roman script only/);
+  assert.match(systemInstruction, /not as a translation/);
 });

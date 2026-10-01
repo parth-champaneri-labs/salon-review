@@ -234,11 +234,8 @@ export function isRetryableProviderError(error: unknown): boolean {
 }
 
 function shouldFallback(error: unknown): boolean {
-  if (
-    error instanceof ReviewProviderError &&
-    error.kind === "output"
-  ) {
-    return true;
+  if (error instanceof ReviewProviderError) {
+    return error.kind === "output";
   }
 
   return isRetryableProviderError(error);
