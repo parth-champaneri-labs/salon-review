@@ -1,7 +1,6 @@
-import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { ReviewExperience } from "@/components/review/ReviewExperience";
-import { isConfiguredClientSlug, siteConfig } from "@/config/site";
+import { siteConfig } from "@/config/site";
 
 export const metadata: Metadata = {
   title: `Share your experience | ${siteConfig.businessName}`,
@@ -9,8 +8,6 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function ClientReviewPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  if (!isConfiguredClientSlug(slug)) notFound();
+export default function ClientReviewPage() {
   return <ReviewExperience />;
 }

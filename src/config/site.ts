@@ -13,12 +13,9 @@ export function normalizeSiteUrl(value: string, variableName = "NEXT_PUBLIC_SITE
   return url.origin;
 }
 
-export function createSiteUrls(url: string, slug: string) {
+export function createSiteUrls(url: string) {
   const siteUrl = normalizeSiteUrl(url);
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
-    throw new Error("Client slug must contain only lowercase letters, numbers, and hyphens.");
-  }
-  const reviewPath = `/review/${slug}`;
+  const reviewPath = "/review/hair-driver";
   return {
     siteUrl,
     reviewPath,
@@ -42,16 +39,10 @@ export function normalizeGoogleReviewUrl(value: string): string {
   return url.href;
 }
 
-const clientSlug = "hair-driver";
 const siteUrls = createSiteUrls(
   process.env.NEXT_PUBLIC_SITE_URL ??
     (process.env.NODE_ENV === "production" ? "https://hairdriver.lumenspirelabs.com" : "http://localhost:3000"),
-  clientSlug,
 );
-
-export function isConfiguredClientSlug(slug: string): boolean {
-  return slug === clientSlug;
-}
 
 export const siteConfig = {
   ...siteUrls,
@@ -61,7 +52,6 @@ export const siteConfig = {
   ),
   businessName: "Hair Driver",
   businessDescriptor: "Family Salon & Academy",
-  clientSlug,
   googleReviewUrl: normalizeGoogleReviewUrl(
     process.env.NEXT_PUBLIC_GOOGLE_REVIEW_URL ?? "https://g.page/r/CTRtkgCvTqETEBM/review",
   ),
