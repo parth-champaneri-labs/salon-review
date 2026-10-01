@@ -11,7 +11,7 @@ Next.js, TypeScript and Tailwind salon review page with two steps and server-sid
 
 ## Domains and review route
 
-`src/config/site.ts` defines the single client slug, business identity, company URL, review route, and derived application URLs. The salon app's root `/` redirects server-side to `/review/hair-driver`. Only the configured slug works; unknown slugs and routes return the branded 404 page. The 404's company link uses `siteConfig.companyUrl`.
+`src/config/site.ts` defines the business identity, company URL, fixed review route, and derived application URLs. The salon app's root `/` redirects server-side to `/review/hair-driver`. Unknown routes return the branded 404 page. The 404's company link uses `siteConfig.companyUrl`.
 
 | Purpose | URL | Owner |
 | --- | --- | --- |
