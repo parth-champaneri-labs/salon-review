@@ -63,16 +63,6 @@ export function parseReviewInput(value: unknown): ReviewInput {
     throw new Error("Invalid review selection.");
   }
 
-  // NAYA - previousReviews optional, agar hai to clean karo
- 
-  // let previousReviews: string[] | undefined;
-  // if ("previousReviews" in value && Array.isArray(value.previousReviews)) {
-  //   previousReviews = (value.previousReviews as unknown[])
-  //    .filter((t): t is string => typeof t === "string" && t.trim().length > 2)
-  //    .map(t => t.trim().slice(0, 500))
-  //    .slice(0, 6); // max 6 purane
-  // }
-
   let previousReviews: string[] | undefined;
 
 if ("previousReviews" in value) {
@@ -99,21 +89,35 @@ if ("previousReviews" in value) {
 
 // Validate on both sides of the endpoint; model output is untrusted.
 export function parseReviewDrafts(value: unknown): ReviewDraft[] {
-  if (!isRecord(value) ||!Array.isArray(value.drafts) || value.drafts.length!== 3) {
+  if (!isRecord(value) || !Array.isArray(value.drafts) || value.drafts.length !== 3) {
     throw new Error("Invalid review drafts.");
   }
   const drafts: ReviewDraft[] = [];
   for (const type of Object.keys(draftLabels) as ReviewDraftType[]) {
     const matches = value.drafts.filter(item => isRecord(item) && item.type === type);
     const item: unknown = matches[0];
-    if (matches.length!== 1 ||!isRecord(item) || item.label!== draftLabels[type] ||
-        typeof item.text!== "string" ||!item.text.trim() || item.text.length > 1200 ||
-        (type === "hinglish" && /[^\p{Script=Latin}\p{Number}\p{Punctuation}\p{Symbol}\p{Separator}\p{Mark}\s]/u.test(item.text))) {
+
+    // Hinglish: sirf Devanagari disallow, emoji aur symbols allow
+    const hasDevanagari =
+      type === "hinglish" &&
+      isRecord(item) &&
+      typeof item.text === "string" &&
+      /[\u0900-\u097F]/.test(item.text);
+
+    if (
+      matches.length !== 1 ||
+      !isRecord(item) ||
+      item.label !== draftLabels[type] ||
+      typeof item.text !== "string" ||
+      !item.text.trim() ||
+      item.text.length > 1500 ||
+      hasDevanagari
+    ) {
       throw new Error("Invalid review drafts.");
     }
     drafts.push({ type, label: draftLabels[type], text: item.text.trim() });
   }
-  if (new Set(drafts.map(draft => draft.text.toLowerCase())).size!== 3) {
+  if (new Set(drafts.map(draft => draft.text.toLowerCase())).size !== 3) {
     throw new Error("Review drafts must be distinct.");
   }
   return drafts;
