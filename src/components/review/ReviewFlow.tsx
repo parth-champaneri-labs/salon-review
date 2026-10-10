@@ -33,7 +33,7 @@ async function copyText(text: string): Promise<boolean> {
 
 export function ReviewFlow() {
   const [step, setStep] = useState<ReviewStep>("details");
-  const [service, setService] = useState("");
+  const [services, setServices] = useState<string[]>([]);
   const [selectedReview, setSelectedReview] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState("");
   const [copyFeedbackId, setCopyFeedbackId] = useState(0);
@@ -43,12 +43,13 @@ export function ReviewFlow() {
   const [arrivalId, setArrivalId] = useState(0);
   const inFlight = useRef(false);
   const generatedContext = useRef<string | null>(null);
+  const reviewHistory = useRef<string[]>([]);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const previousStep = useRef(step);
   const copyId = useRef(0);
   const stepIndex = steps.indexOf(step);
-  const reviewContext = JSON.stringify({ service });
+  const reviewContext = JSON.stringify([...services].sort());
   const loading = generationStatus === "loading";
 
   useEffect(() => {
@@ -83,37 +84,39 @@ export function ReviewFlow() {
   }
 
   async function continueToReview(regenerate = false) {
-    if (!service || inFlight.current) return;
+    if (services.length === 0 || inFlight.current) return;
     if (regenerate && generation?.remaining === 0) return;
-    
-    // Normal continue pe cache use karo, regenerate pe nahi
+    const sameGeneratedContext =
+    generatedContext.current === reviewContext;
     if (!regenerate && generatedContext.current === reviewContext && reviews.length === 3) {
       setGenerationStatus("success");
       setArrivalId(0);
       navigate("review");
       return;
     }
-    
+  
     inFlight.current = true;
     clearCopyStatus();
     setSelectedReview(null);
     setGenerationStatus("loading");
     navigate("review");
-    
+  
     try {
-      // YAHI MAIN CHANGE HAI
       const payload = {
-        service,
-        previousReviews: regenerate ? reviews.map(r => r.text) : [], // purane 3 bhej do
+        services,
+        previousReviews:
+        regenerate && sameGeneratedContext
+          ? reviewHistory.current
+          : [],
       };
-
+  
       const response = await fetch("/api/generate-review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload), // reviewContext ki jagah payload
+        body: JSON.stringify(payload),
         signal: AbortSignal.timeout(50000),
       });
-      
+  
       const body: unknown = await response.json();
       if (typeof body !== "object" || body === null || Array.isArray(body)) throw new Error("Invalid review response");
       const result = body as Record<string, unknown>;
@@ -125,6 +128,11 @@ export function ReviewFlow() {
       if (!response.ok) throw new Error("Review request failed");
       const nextReviews = parseReviewDrafts(body);
       const nextGeneration = parseGenerationState(result.generation);
+      const nextReviewTexts = nextReviews.map(review => review.text);
+
+      reviewHistory.current = sameGeneratedContext
+        ? [...reviewHistory.current, ...nextReviewTexts].slice(-6)
+        : nextReviewTexts;
       setReviews(nextReviews);
       setGeneration(nextGeneration);
       generatedContext.current = reviewContext;
@@ -177,10 +185,15 @@ export function ReviewFlow() {
               <p className="mt-5 max-w-xs text-sm leading-relaxed text-muted">A fresh look. A little confidence. A moment for yourself.<br />Tell us how your visit felt.</p>
               <div className="mt-7 flex items-center gap-3 text-xs text-muted"><span className="h-px w-8 shrink-0 bg-[#a59273]" />JUST A FEW MOMENTS. ALL YOUR WORDS.</div>
             </div>
-            {service && <div className="border-t border-line pt-5 text-sm text-muted lg:mt-7">
-              <p className="eyebrow">YOUR VISIT</p>
-              <p className="eyebrow mt-4">SERVICE</p><p>{service}</p>
-            </div>}
+              {services.length > 0 && (
+              <div className="border-t border-line pt-5 text-sm text-muted lg:mt-7">
+                <p className="eyebrow">YOUR VISIT</p>
+                <p className="eyebrow mt-4">{services.length > 1 ? "SERVICES" : "SERVICE"}</p>
+                <ul className="mt-1 space-y-1">
+                  {services.map(service => <li key={service}>{service}</li>)}
+                </ul>
+              </div>
+            )}
           </aside>
 
           <div className="order-1 min-w-0 lg:order-2">
@@ -205,16 +218,33 @@ export function ReviewFlow() {
               <p className="eyebrow mb-4 text-muted">STEP 0{stepIndex + 1}</p>
               <h3 ref={headingRef} tabIndex={-1} className="step-heading">{heading}</h3>
               {step === "details" && <>
-                <p className="mt-4 text-sm text-muted">Choose your primary service.</p>
+                <p className="mt-4 text-sm text-muted">Choose up to 3 services from your visit.</p>
                 <fieldset disabled={loading} aria-busy={loading} className="min-w-0 border-0 p-0">
                   <legend className="sr-only">Your visit details</legend>
-                  <ServiceSelector value={service} onChange={value => { if (value !== service) { changeContext(); setService(value); } }} />
+                  <ServiceSelector
+                    value={services}
+                    onChange={value => {
+                      // same content (order ignore) ho to context change nahi
+                      const same = value.length === services.length && value.every(s => services.includes(s));
+                      if (!same) {
+                        changeContext();
+                        setServices(value);
+                      }
+                    }}
+                  />
                   <div className="mt-8">
                     <p className="text-sm">Need a little inspiration?</p>
                     <p className="mt-1 text-sm text-muted">Generate a few review suggestions based on your visit.</p>
                   </div>
                   <div className="mt-4">
-                    <button type="button" className="action w-full sm:w-auto" disabled={!service || loading} onClick={() => void continueToReview()}>Continue <Arrow /></button>
+                    <button
+                      type="button"
+                      className="action w-full sm:w-auto"
+                      disabled={services.length === 0 || loading}
+                      onClick={() => void continueToReview()}
+                    >
+                      Continue <Arrow />
+                    </button>                  
                   </div>
                   <a className="underlink mt-3" href={siteConfig.googleReviewUrl}>Or write your review directly on Google <Arrow diagonal /></a>
                 </fieldset>

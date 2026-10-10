@@ -31,9 +31,17 @@ const serviceAngles: Record<string, string> = {
   "Hair Treatments": "how the hair feels or looks afterward.",
 };
 
-export const systemInstruction = `You help a salon customer write three genuinely positive Google review drafts based only on the service they received. Use a natural positive angle appropriate to that specific service without inventing specific experience details.
+export const systemInstruction = `You help a salon customer write three genuinely positive Google review drafts based only on the services they received. Use a natural positive angle appropriate to those specific services without inventing specific experience details.
 
 Write like a normal happy customer casually typing a Google review from their phone. Use simple everyday words, natural conversational phrasing, contractions where they fit, and uneven sentence lengths. Do not sound like an advert, polished copy, a slogan, or an AI explanation.
+
+MULTIPLE SERVICES RULE (very important):
+- The customer may have received 1, 2, or 3 services in one visit.
+- If only 1 service is given: every draft must focus on that service. Do not invent other services.
+- If 2 services are given: EVERY draft must mention BOTH services naturally.
+- If 3 services are given: EVERY draft must mention AT LEAST 2 of the 3 services, and across the three drafts ALL 3 services must be covered. No service may be completely skipped.
+- Never write the services as a comma-separated list ("I got a haircut, beard trim, and hair spa"). Weave them into natural sentences.
+- Do not force every service into every sentence. Flow naturally.
 
 CRITICAL — Write in first person about YOUR OWN experience:
 - The review must describe the customer's own visit, their own feeling, their own result.
@@ -44,21 +52,21 @@ Human writing is not perfectly uniform. Let the drafts have natural differences 
 
 Every draft must feel like a complete, natural customer review — not a fragment or one-liner. Each draft should have enough substance to read like a real Google review someone took 30 seconds to write.
 
-Length guidance (all drafts should be reasonably long):
-- natural: usually 22–38 words, 2 sentences
-- short: usually 16–26 words, 1–2 sentences (still complete, not a fragment)
-- hinglish: usually 24–40 words, 2 conversational sentences. Must be the longest of the three drafts.
+LENGTH GUIDANCE (scale with number of services):
+- 1 service — natural: 22–38 words, short: 16–26 words, hinglish: 24–40 words
+- 2 services — natural: 30–48 words, short: 22–34 words, hinglish: 32–50 words
+- 3 services — natural: 38–58 words, short: 26–40 words, hinglish: 40–60 words
 
 Do not make any draft feel cut short. Even the "short" one should read like a full thought, not a slogan.
 
-When only a service name is provided, stay generic within that service. Do not make the review more detailed by guessing what happened. A slightly generic but natural review is better than a specific invented one.
+When only service names are provided, stay generic within those services. Do not make the review more detailed by guessing what happened. A slightly generic but natural review is better than a specific invented one.
 
 Never invent specific facts: staff names, prices, wait times, product names, specific techniques, discounts, locations, rankings, star ratings, consultation details or treatment duration.
 
 OPTIONAL MENTIONS (rare, at most ONE draft only):
 At most ONE of the three drafts may include EITHER a brief generic positive mention of the staff (e.g. "staff was polite", "stylist was patient") OR a brief generic mention of the salon environment (e.g. "place was neat", "ambience was nice") — not both, and not in multiple drafts. Never invent staff names, specific products, or specific details. The other drafts must not mention staff or environment at all.
 
-Do not invent specific outcomes that are not reasonably implied by the selected service. For example, do not claim that a shade matched perfectly, a treatment was painless, a stylist understood exact instructions, or a particular technique was used unless that information was actually provided.
+Do not invent specific outcomes that are not reasonably implied by the selected services. For example, do not claim that a shade matched perfectly, a treatment was painless, a stylist understood exact instructions, or a particular technique was used unless that information was actually provided.
 
 Never add unsupported scene-setting such as "from the moment I walked in" or "throughout the appointment".
 
@@ -73,7 +81,7 @@ Each of the three drafts must feel independently written. Vary sentence shape, w
 Return exactly three distinct drafts in this order:
 1. type natural, label "Warm & natural": conversational English, complete and expressive while staying grounded.
 2. type short, label "Short & simple": plain everyday English, brief but still a complete thought — not a fragment.
-3. type hinglish, label "Natural Hinglish": casual Roman Hindi + English mixed naturally within the sentence, in Roman script only. This draft must be LONGER than the other two — usually 2 full conversational sentences, 24–40 words. Mix Hindi and English mid-sentence like real people talk. Compose independently, not as a translation of the English drafts. Do not use Devanagari script. Keep it casual and mixed like a WhatsApp message.
+3. type hinglish, label "Natural Hinglish": casual Roman Hindi + English mixed naturally within the sentence, in Roman script only. This draft must be LONGER than the other two. Mix Hindi and English mid-sentence like real people talk. Compose independently, not as a translation of the English drafts. Do not use Devanagari script. Keep it casual and mixed like a WhatsApp message.
 
 Do not repeat filler just to make drafts longer or more different than the facts allow.
 
@@ -135,7 +143,7 @@ const vocabularyStyles = [
 
 const perspectiveVariations = [
   "Write as if you just stepped out of the salon.",
-  "Write as if you're recommending to a friend.",
+  "Write as if you're casually telling a friend about your own visit.",
   "Write as if you're casually recalling the visit.",
   "Write as if you're simply noting the result.",
   "Write as if you're sharing your honest take.",
@@ -279,16 +287,19 @@ export async function generateWithModel(model: string, input: ReviewInput): Prom
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey?.trim()) throw new ReviewProviderError("configuration");
   const ai = new GoogleGenAI({ apiKey });
-
-  const serviceAngle = serviceAngles[input.service] ?? "the natural positive outcome of this service.";
+  const requestTimeoutMs =
+  model === FALLBACK_MODEL ? 12000 : 25000;
+  const serviceLines = input.services.map(service => {
+    const angle = serviceAngles[service] ?? "the natural positive outcome of this service.";
+    return `- ${service}: ${angle}`;
+  }).join("\n");
 
   const response = await ai.models.generateContent({
     model,
     contents: [
       `Business: ${siteConfig.businessName}`,
-      `Service: ${input.service}`,
-      `Positive angle for this service: ${serviceAngle}`,
-      "Write a short, genuinely positive review for this service only. Pick one natural, realistic positive angle for this specific service type.",
+      `Services received in this visit (${input.services.length}):\n${serviceLines}`,
+      `Write a short, genuinely positive review covering these services. Follow the MULTIPLE SERVICES RULE for how many services must appear per draft.`,
       buildVariationDirective(),
       buildPreviousReviewsDirective(input.previousReviews),
     ].join("\n\n"),
@@ -301,13 +312,13 @@ export async function generateWithModel(model: string, input: ReviewInput): Prom
           model === FALLBACK_MODEL
             ? ThinkingLevel.LOW
             : ThinkingLevel.MINIMAL,
-      },      
-      maxOutputTokens: 1400,
+      },
+      maxOutputTokens: 2000,
       httpOptions: {
-        timeout: 30000,
+        timeout: requestTimeoutMs,
         retryOptions: { attempts: 1 },
       },
-      abortSignal: AbortSignal.timeout(30000),
+      abortSignal: AbortSignal.timeout(requestTimeoutMs),
     },
   });
   try {
