@@ -14,7 +14,7 @@ const output = {
   drafts: [
     { type: 'natural', label: draftLabels.natural, text: 'Really happy with how my haircut turned out.' },
     { type: 'short', label: draftLabels.short, text: 'Great haircut, loved it.' },
-    { type: 'hinglish', label: draftLabels.hinglish, text: 'Haircut bahut acha laga, kaafi pasand aaya.' },
+    { type: 'casual / Casual & natural', label: draftLabels.casual / Casual & natural, text: 'Haircut bahut acha laga, kaafi pasand aaya.' },
   ],
 };
 const request = value => new Request('http://localhost/api/generate-review', {

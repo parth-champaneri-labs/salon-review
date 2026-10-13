@@ -14,7 +14,7 @@ process.env.REVIEW_COOKIE_SECRET = secret;
 const drafts = [
   { type: 'natural', label: draftLabels.natural, text: 'Really liked my haircut.' },
   { type: 'short', label: draftLabels.short, text: 'Nice haircut.' },
-  { type: 'hinglish', label: draftLabels.hinglish, text: 'Haircut kaafi acha laga.' },
+  { type: 'casual / Casual & natural', label: draftLabels.casual / Casual & natural, text: 'Haircut kaafi acha laga.' },
 ];
 
 function request(cookie, service = 'Haircut') {

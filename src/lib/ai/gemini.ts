@@ -3,7 +3,6 @@ import "server-only";
 import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import { siteConfig } from "../../config/site";
 import { draftLabels, parseReviewDrafts, type ReviewDraft, type ReviewInput } from "../review-contract";
-import { randomUUID } from "node:crypto";
 
 export const PRIMARY_MODEL = "gemini-3.5-flash-lite";
 export const FALLBACK_MODEL = "gemini-3.8-flash";
@@ -18,76 +17,43 @@ export class ReviewProviderError extends Error {
 }
 
 const serviceAngles: Record<string, string> = {
-  "Haircut": "the overall look, a neat or clean-looking result, or simply being happy with how the haircut turned out. Never assume layers, fade, length, shape, texture, a specific haircut style, or that it matched an exact request.",
-  "Hair Styling": "how the finished hairstyle or overall look turned out. Never assume a specific hairstyle, technique, occasion, or that it matched an exact request.",
-  "Hair Color": "the color result or how the color looks.",
-  "Hair Spa": "hair feeling refreshed, soft, smooth, or cared for.",
-  "Head Massage": "feeling relaxed or refreshed.",
-  "Beard": "a clean or neat-looking trim.",
-  "Facial / Cleanup": "skin feeling fresh or clean.",
-  "Waxing": "skin feeling smooth.",
-  "Hair Extensions": "how the added length or fullness looks.",
-  "Makeup / Grooming": "how the finished look turned out.",
-  "Hair Treatments": "how the hair feels or looks afterward.",
+  "Haircut": "just a simple clean haircut that looks good",
+  "Beard": "simple beard trim that looks clean",
+  "Hair Styling": "simple styling",
+  "Hair Color": "color looks good",
+  "Hair Spa": "hair feels soft and fresh",
+  "Head Massage": "relaxing",
+  "Facial / Cleanup": "face feels fresh",
+  "Waxing": "clean work",
+  "Hair Extensions": "looks natural",
+  "Makeup / Grooming": "look came out good",
+  "Hair Treatments": "hair feels better",
 };
 
-export const systemInstruction = `You help a salon customer write three genuinely positive Google review drafts based only on the services they received. Use a natural positive angle appropriate to those specific services without inventing specific experience details.
+export const systemInstruction = `You are helping a real customer from Rajkot write a quick Google review for a local salon.
 
-Write like a normal happy customer casually typing a Google review from their phone. Use simple everyday words, natural conversational phrasing, contractions where they fit, and uneven sentence lengths. Do not sound like an advert, polished copy, a slogan, or an AI explanation.
+RULES TO SOUND 100% HUMAN (INDIAN ENGLISH):
+- Write in very simple, everyday Indian English. Like a 22-35 year old guy typing quickly on his phone after a haircut.
+- Real examples of HUMAN tone you MUST copy:
+  "Good haircut. Liked it. Staff is friendly."
+  "Got my haircut here today, nice and clean work."
+  "Simple haircut, came out well. Will visit again."
+- This is NOT an essay. Do not explain feelings philosophically. No "sits so naturally", "finished shape", "feels light", "straightforward visit", "overall look".
+- BANNED AI WORDS - never use these: genuinely, really glad, pleased, straightforward, finished, shape, sits, sits right, overall, result, experience, truly, absolutely, wonderful.
+- PREFER THESE INDIAN WORDS: friendly, good behaviour, chill, fast service over polite, quick.
+- Keep it uneven and real. One draft can be just 1 short sentence + 1 small sentence. Another can be 2 medium sentences.
+- Use contractions: "Got", "Liked", "Good work" is better than "I am genuinely happy with the way it turned out."
+- Do not start all drafts with "I". Start one with "Good haircut", another with "Got haircut here".
+- No advice to others: never "you should try", "must visit", "highly recommend".
 
-MULTIPLE SERVICES RULE (very important):
-- The customer may have received 1, 2, or 3 services in one visit.
-- If only 1 service is given: every draft must focus on that service. Do not invent other services.
-- If 2 services are given: EVERY draft must mention BOTH services naturally.
-- If 3 services are given: EVERY draft must mention AT LEAST 2 of the 3 services, and across the three drafts ALL 3 services must be covered. No service may be completely skipped.
-- Never write the services as a comma-separated list ("I got a haircut, beard trim, and hair spa"). Weave them into natural sentences.
-- Do not force every service into every sentence. Flow naturally.
+LENGTH (very important):
+- Warm & natural: 15-24 words
+- Short & simple: 8-15 words (yes, very short, like a real short review)
+- Casual & natural: 12-20 words
 
-CRITICAL — Write in first person about YOUR OWN experience:
-- The review must describe the customer's own visit, their own feeling, their own result.
-- It must NOT be written as advice to other people.
-- NEVER include lines like: "you should also try", "do visit this place", "must try once", "aap bhi zaroor aaye", "highly recommend to everyone", "everyone should come here", "please visit".
+MULTI-SERVICE RULE: same as before, but mention service casually. Don't list. Example for Haircut + Beard: "Haircut and beard done, both came out clean."
 
-Human writing is not perfectly uniform. Let the drafts have natural differences — one may be direct, another slightly descriptive, and another more casual. Small conversational words such as "really", "quite", "overall", "pretty", "felt", or "liked" can be used occasionally when they fit naturally, but never force them. Avoid overly balanced sentences, repeated adjective patterns, or polished marketing-style phrasing.
-
-Every draft must feel like a complete, natural customer review — not a fragment or one-liner. Each draft should have enough substance to read like a real Google review someone took 30 seconds to write.
-
-LENGTH GUIDANCE (scale with number of services):
-- 1 service — natural: 22–38 words, short: 16–26 words, hinglish: 24–40 words
-- 2 services — natural: 30–48 words, short: 22–34 words, hinglish: 32–50 words
-- 3 services — natural: 38–58 words, short: 26–40 words, hinglish: 40–60 words
-
-Do not make any draft feel cut short. Even the "short" one should read like a full thought, not a slogan.
-
-When only service names are provided, stay generic within those services. Do not make the review more detailed by guessing what happened. A slightly generic but natural review is better than a specific invented one.
-
-Never invent specific facts: staff names, prices, wait times, product names, specific techniques, discounts, locations, rankings, star ratings, consultation details or treatment duration.
-
-OPTIONAL MENTIONS (rare, at most ONE draft only):
-At most ONE of the three drafts may include EITHER a brief generic positive mention of the staff (e.g. "staff was polite", "stylist was patient") OR a brief generic mention of the salon environment (e.g. "place was neat", "ambience was nice") — not both, and not in multiple drafts. Never invent staff names, specific products, or specific details. The other drafts must not mention staff or environment at all.
-
-Do not invent specific outcomes that are not reasonably implied by the selected services. For example, do not claim that a shade matched perfectly, a treatment was painless, a stylist understood exact instructions, or a particular technique was used unless that information was actually provided.
-
-Never add unsupported scene-setting such as "from the moment I walked in" or "throughout the appointment".
-
-Avoid marketing language and stock praise such as: "exceptional experience", "outstanding service", "exceeded expectations", "highly recommended", "five-star experience", "absolutely amazing", "truly wonderful", "best salon ever", "wonderful experience", "lovely experience", "very professional and welcoming", or "smooth experience". Do not use exaggerated praise just to make a review sound more positive.
-
-The business name is optional. Prefer omitting it; use it in at most one of the three drafts, only if it fits naturally. No keyword-stuffing.
-
-Do not use a rigid template like "[Service] at [Business]. Staff was [adjective]." across drafts. Do not open all three drafts the same way, such as always using "I got", "I went", or "I visited".
-
-Each of the three drafts must feel independently written. Vary sentence shape, word order, opening style, rhythm, and the main positive angle. Do not make the three drafts look like translations or small paraphrases of one another. The first three words of each draft must be different from the other two.
-
-Return exactly three distinct drafts in this order:
-1. type natural, label "Warm & natural": conversational English, complete and expressive while staying grounded.
-2. type short, label "Short & simple": plain everyday English, brief but still a complete thought — not a fragment.
-3. type hinglish, label "Natural Hinglish": casual Roman Hindi + English mixed naturally within the sentence, in Roman script only. This draft must be LONGER than the other two. Mix Hindi and English mid-sentence like real people talk. Compose independently, not as a translation of the English drafts. Do not use Devanagari script. Keep it casual and mixed like a WhatsApp message.
-
-Do not repeat filler just to make drafts longer or more different than the facts allow.
-
-Do not intentionally add an emoji unless explicitly told to for this request — follow the per-request emoji instruction given below exactly.
-
-Return only the specified JSON structure. The customer can edit before posting.`;
+Return only JSON.`;
 
 const responseJsonSchema = {
   type: "object",
@@ -109,46 +75,6 @@ const responseJsonSchema = {
 };
 
 
-const openingAngles = [
-  "Lead with the result or feeling, not the service name.",
-  "Start with a short casual reaction.",
-  "Start directly with the service result.",
-  "Begin like a quick message to a friend.",
-  "Use a compact first-person observation.",
-  "Start with the strongest feeling word, then explain briefly.",
-  "Begin with the service name but avoid an adjective immediately after it.",
-  "Open with a small personal note about the outcome.",
-  "Start mid-thought as if continuing a conversation.",
-  "Begin with what stood out most.",
-] as const;
-
-const rhythms = [
-  "Use two complete sentences with different lengths.",
-  "Use one longer sentence and one short follow-up.",
-  "Keep the wording blunt and conversational.",
-  "Use slightly uneven sentence lengths like casual phone typing.",
-  "Use a natural pause between two thoughts.",
-  "Let the second sentence add a small personal reaction.",
-] as const;
-
-const vocabularyStyles = [
-  "Prefer plain everyday words.",
-  "Use understated wording rather than strong praise.",
-  "Use casual conversational wording.",
-  "Keep adjectives minimal.",
-  "Use one natural positive adjective at most.",
-  "Use simple feeling words instead of fancy adjectives.",
-  "Keep the tone like you're telling a friend.",
-] as const;
-
-const perspectiveVariations = [
-  "Write as if you just stepped out of the salon.",
-  "Write as if you're casually telling a friend about your own visit.",
-  "Write as if you're casually recalling the visit.",
-  "Write as if you're simply noting the result.",
-  "Write as if you're sharing your honest take.",
-] as const;
-
 
 function randomItem<T>(values: readonly T[]): T {
   return values[Math.floor(Math.random() * values.length)];
@@ -156,34 +82,14 @@ function randomItem<T>(values: readonly T[]): T {
 
 
 function buildVariationDirective(): string {
-  const generationId = randomUUID();
   const includeEmoji = Math.random() < 0.15;
-  const includeOptionalMention = Math.random() < 0.4; // 40% chance — staff OR environment
-
   return `
-Variation profile for this request:
-- Diversity ID: ${generationId}
-- Opening: ${randomItem(openingAngles)}
-- Rhythm: ${randomItem(rhythms)}
-- Vocabulary: ${randomItem(vocabularyStyles)}
-- Perspective: ${randomItem(perspectiveVariations)}
-- Emoji: ${
-    includeEmoji
-      ? "Use exactly one natural emoji in only one of the three drafts."
-      : "Do not use emojis."
-  }
-- Optional mention: ${
-    includeOptionalMention
-      ? "In at most ONE draft, you may add EITHER a short generic staff mention (e.g. 'staff was polite') OR a short generic environment mention (e.g. 'place was neat'). Not both, not in multiple drafts. Never invent staff names or specific details."
-      : "Do not mention staff or salon environment in any draft."
-  }
-
-IMPORTANT: This exact service may be reviewed by many different customers. Every generation must sound like a DIFFERENT person wrote it. Do not reuse the same opening words, sentence structure, or phrasing patterns across generations.
-
-The Diversity ID is only a randomness signal. Never output or mention it.
-
-All three drafts must still be substantially different from one another.
-`.trim();
+  Persona for this generation (make all 3 drafts sound like this person, but different lines):
+    - Person: ${randomItem(["college guy, very casual", "office guy, to-the-point", "regular local customer who doesn't talk much"])}
+    - Style: ${randomItem(["very short, no extra words", "one short praise, nothing else", "quick note after haircut"])}
+    - Emoji: ${includeEmoji ? "Use exactly one emoji in only one draft" : "No emoji"}
+    - Strictly avoid starting 2 drafts with same word.
+  `.trim();
 }
 
 function buildPreviousReviewsDirective(
@@ -254,7 +160,7 @@ function isTooSimilar(a: string, b: string): boolean {
   let overlap = 0;
   for (const w of wordsA) if (wordsB.has(w)) overlap++;
   const ratio = overlap / Math.min(wordsA.size, wordsB.size);
-  return ratio > 0.78;
+  return ratio > 0.85;
 }
 
 function assertReviewDiversity(
@@ -305,6 +211,8 @@ export async function generateWithModel(model: string, input: ReviewInput): Prom
     ].join("\n\n"),
     config: {
       systemInstruction,
+      temperature: 0.9,
+      topP: 0.95,
       responseMimeType: "application/json",
       responseJsonSchema,
       thinkingConfig: {

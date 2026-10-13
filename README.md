@@ -30,7 +30,7 @@ For Vercel production, add `hairdriver.lumenspirelabs.com` as a custom domain on
 
 A phone cannot reach another computer's `localhost`. For real-device development, use a reachable LAN origin such as `http://192.168.x.x:3000` as `NEXT_PUBLIC_SITE_URL` and run Next.js on the LAN. Do not use a LAN URL for final printing.
 
-Choose a service, then Continue. The page shows a writing state while the request runs, followed by three valid drafts: Warm & natural, Short & simple, Natural Hinglish. Customers can also write directly on Google from the service step without selecting a service or generating a draft; all Google review links open in the same tab.
+Choose a service, then Continue. The page shows a writing state while the request runs, followed by three valid drafts: Warm & natural, Short & simple, casual / Casual & natural. Customers can also write directly on Google from the service step without selecting a service or generating a draft; all Google review links open in the same tab.
 
 Selecting a suggestion copies it automatically. Continue to Google opens the salon's official review form; the customer pastes or edits their review and submits it manually. The destination is read through `siteConfig.googleReviewUrl` from `NEXT_PUBLIC_GOOGLE_REVIEW_URL`. To change it later, update that environment variable, then restart local development or rebuild and redeploy production. Use the same Google review URL in production alongside `NEXT_PUBLIC_SITE_URL=https://hairdriver.lumenspirelabs.com`.
 
@@ -55,7 +55,7 @@ gemini-3.8-flash is always attempted first. HTTP 408, 429, 5xx, timeout/abort, o
 
 Configuration/auth/model-not-found errors do not trigger fallback. If fallback output is also invalid, the request fails. Missing configuration returns HTTP 503; provider/output failures return HTTP 502. The UI shows a generic retry message in the review step. No hardcoded review is substituted. Logs contain only sanitized categories and status labels/codes, never keys, selections, provider messages or draft text.
 
-Output validation requires exactly one draft of each expected type, matching labels, nonempty distinct text and at most 1200 characters per draft. Hinglish text must use Roman script. Grounding, tone, approximate word counts and variation are instructed in the server prompt; factual faithfulness still needs human review with a live key.
+Output validation requires exactly one draft of each expected type, matching labels, nonempty distinct text and at most 1200 characters per draft. casual / Casual & natural text must use Roman script. Grounding, tone, approximate word counts and variation are instructed in the server prompt; factual faithfulness still needs human review with a live key.
 
 No database is currently required for the single-client salon review application. The current frontend, Gemini generation, and signed cookie limit do not use persistent storage or authentication.
 

@@ -15,7 +15,7 @@ export const allowedServices = [
 export const draftLabels = {
   natural: "Warm & natural",
   short: "Short & simple",
-  hinglish: "Natural Hinglish",
+  casual: "Casual & natural",
 } as const;
 
 export type ReviewDraftType = keyof typeof draftLabels;
@@ -110,21 +110,13 @@ export function parseReviewDrafts(value: unknown): ReviewDraft[] {
   for (const type of Object.keys(draftLabels) as ReviewDraftType[]) {
     const matches = value.drafts.filter(item => isRecord(item) && item.type === type);
     const item: unknown = matches[0];
-
-    const hasDevanagari =
-      type === "hinglish" &&
-      isRecord(item) &&
-      typeof item.text === "string" &&
-      /[\u0900-\u097F]/.test(item.text);
-
     if (
       matches.length !== 1 ||
       !isRecord(item) ||
       item.label !== draftLabels[type] ||
       typeof item.text !== "string" ||
       !item.text.trim() ||
-      item.text.length > 1500 ||
-      hasDevanagari
+      item.text.length > 1500
     ) {
       throw new Error("Invalid review drafts.");
     }
